@@ -1,49 +1,58 @@
 #!/usr/bin/env python3
 
 """
-Given one or more directories containing SIRI-VM data in Json, spit
-out all unique vehicle journeys (based on OriginRef, DestinationRef,
-OriginAimedDepartureTime, LineRef, OperatorRef, DirectionRef, and
-VehicleRef) with start or end stops in our list of stops in CSV
+Retrieve trip information
 
-   "request_data": [
-        {
-            "Bearing": "300",
-            "DataFrameRef": "1",
-            "DatedVehicleJourneyRef": "119",
-            "Delay": "-PT33S",
-            "DestinationName": "Emmanuel St Stop E1",
-            "DestinationRef": "0500CCITY487",
-            "DirectionRef": "OUTBOUND",
-            "InPanic": "0",
-            "Latitude": "52.2051239",
-            "LineRef": "7",
-            "Longitude": "0.1242290",
-            "Monitored": "true",
-            "OperatorRef": "SCCM",
-            "OriginAimedDepartureTime": "2017-10-25T23:14:00+01:00",
-            "OriginName": "Park Road",
-            "OriginRef": "0500SSAWS023",
-            "PublishedLineName": "7",
-            "RecordedAtTime": "2017-10-25T23:59:48+01:00",
-            "ValidUntilTime": "2017-10-25T23:59:48+01:00",
-            "VehicleMonitoringRef": "SCCM-19597",
-            "VehicleRef": "SCCM-19597",
-            "acp_id": "SCCM-19597",
-            "acp_lat": 52.2051239,
-            "acp_lng": 0.124229,
-            "acp_ts": 1508972388
-        },
+Given a date and one or more *directories* containing SIRI-VM data in
+Json, spit out all unique vehicle journeys (based on OriginRef,
+DestinationRef, OriginAimedDepartureTime, LineRef, OperatorRef,
+DirectionRef, and VehicleRef) where at least one of the origin or
+destination in our list of stops. Output the data in CSV.
+
+Input file format:
+
+"request_data": [
+    {
+        "Bearing": "300",
+        "DataFrameRef": "1",
+        "DatedVehicleJourneyRef": "119",
+        "Delay": "-PT33S",
+        "DestinationName": "Emmanuel St Stop E1",
+        "DestinationRef": "0500CCITY487",
+        "DirectionRef": "OUTBOUND",
+        "InPanic": "0",
+        "Latitude": "52.2051239",
+        "LineRef": "7",
+        "Longitude": "0.1242290",
+        "Monitored": "true",
+        "OperatorRef": "SCCM",
+        "OriginAimedDepartureTime": "2017-10-25T23:14:00+01:00",
+        "OriginName": "Park Road",
+        "OriginRef": "0500SSAWS023",
+        "PublishedLineName": "7",
+        "RecordedAtTime": "2017-10-25T23:59:48+01:00",
+        "ValidUntilTime": "2017-10-25T23:59:48+01:00",
+        "VehicleMonitoringRef": "SCCM-19597",
+        "VehicleRef": "SCCM-19597",
+        "acp_id": "SCCM-19597",
+        "acp_lat": 52.2051239,
+        "acp_lng": 0.124229,
+        "acp_ts": 1508972388
+    },
+    ...
+]
 """
 
 import csv
+import datetime
+import glob
 import json
 import logging
 import os
 import sys
 
 from util import (
-    API_SCHEMA, BOUNDING_BOX, get_client, get_stops
+    API_SCHEMA, BOUNDING_BOX, LOAD_PATH, get_client, get_stops
 )
 
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
@@ -52,6 +61,8 @@ logger = logging.getLogger('__name__')
 
 def update_bbox(box, lng, lat):
     '''
+    Update a bounding box
+
     Update a bounding box represented as (min longitude, min latitude,
     max longitude, max latitude) with a new point
     '''
@@ -65,7 +76,7 @@ def update_bbox(box, lng, lat):
         box[3] = lat
 
 
-def get_trips(directories, stops):
+def get_trips(date, stops):
     '''
     Return a dictionary of all trips (realtime journeys) on the day
     indicated by year/month/day that have origin or destination stops in
@@ -74,47 +85,45 @@ def get_trips(directories, stops):
 
     trips = {}
 
-    for directory in directories:
-        logger.info('Processing from %s', directory)
-        for file in os.listdir(os.fsencode(directory)):
-            filename = os.path.join(directory, os.fsdecode(file))
-            if not filename.endswith(".json"):
-                continue
+    path = os.path.join(LOAD_PATH, date.strftime('%Y/%m/%d'), '*.json')
+    logger.info('Processing from %s', path)
 
-            # print("Processing %s" % filename)
+    for filename in glob.iglob(path):
 
-            with open(filename) as data_file:
-                data = json.load(data_file)
+        logger.debug("Processing %s", filename)
 
-            for record in data["request_data"]:
+        with open(filename) as data_file:
+            data = json.load(data_file)
 
-                # Form a unique key for this data
-                key = (
-                    record['OriginRef'],
-                    record['DestinationRef'],
-                    record['OriginAimedDepartureTime'],
-                    record['LineRef'],
-                    record['OperatorRef'],
-                    record['DirectionRef'],
-                    record['VehicleRef'],
-                )
+        for record in data["request_data"]:
 
-                if key not in trips:
-                    trips[key] = record
-                    trips[key]['positions'] = [(record['acp_lng'],
+            # Form a unique key for this data
+            key = (
+                record['OriginRef'],
+                record['DestinationRef'],
+                record['OriginAimedDepartureTime'],
+                record['LineRef'],
+                record['OperatorRef'],
+                record['DirectionRef'],
+                record['VehicleRef'],
+            )
+
+            if key not in trips:
+                trips[key] = record
+                trips[key]['positions'] = [(record['acp_lng'],
+                                            record['acp_lat'],
+                                            record['acp_ts']
+                                            )]
+                trips[key]['bbox'] = [record['acp_lng'], record['acp_lat'],
+                                      record['acp_lng'], record['acp_lat']]
+            else:
+                trips[key]['positions'].append((record['acp_lng'],
                                                 record['acp_lat'],
                                                 record['acp_ts']
-                                                )]
-                    trips[key]['bbox'] = [record['acp_lng'], record['acp_lat'],
-                                          record['acp_lng'], record['acp_lat']]
-                else:
-                    trips[key]['positions'].append((record['acp_lng'],
-                                                    record['acp_lat'],
-                                                    record['acp_ts']
-                                                    ))
-                    update_bbox(trips[key]['bbox'],
-                                record['acp_lng'],
-                                record['acp_lat'])
+                                                ))
+                update_bbox(trips[key]['bbox'],
+                            record['acp_lng'],
+                            record['acp_lat'])
 
     logger.info("Found %s raw trips journeys", len(trips))
 
@@ -131,51 +140,30 @@ def get_trips(directories, stops):
     return trip_list
 
 
-def emit_trips(trips):
+def emit_trips(day, trips):
     '''
-    Print trip details in CSV
+    Print trip details in json to 'trips-<YYYY>-<mm>-<dd>.json'
     '''
 
-    output = csv.writer(sys.stdout)
-    heading = (
-        'OriginRef',
-        'OriginName',
-        'DestinationRef',
-        'DestinationName',
-        'OriginAimedDepartureTime',
-        'LineRef',
-        'OperatorRef',
-        'DirectionRef',
-        'VehicleRef',
-        'positions',
-        'bounding_box')
-    output.writerow(heading)
+    filename = 'trips-{:%Y-%m-%d}.json'.format(day)
+    logger.info('Outputing to %s', filename)
 
-    for trip in trips:
-        position_list = ','.join([','.join(p) for p in trip['positions']])
-        bounding_box = '{},{},{},{}'.format(
-            trip['bounding_box'][0],
-            trip['bounding_box'][1],
-            trip['bounding_box'][2],
-            trip['bounding_box'][3],
-            )
-        row = (
-            trip['OriginRef'],
-            trip['OriginName'],
-            trip['DestinationRef'],
-            trip['DestinationName'],
-            trip['OriginAimedDepartureTime'],
-            trip['LineRef'],
-            trip['OperatorRef'],
-            trip['DirectionRef'],
-            trip['VehicleRef'],
-            position_list,
-            bounding_box,
-        )
-        output.writerow(row)
+    with open(filename, 'w', newline='') as jsonfile:
+        output = {
+            'day': day.strftime("%Y/%m/%d"),
+            'bounding_box': BOUNDING_BOX,
+            'trips': trips
+        }
+        json.dump(output, jsonfile, indent=4, sort_keys=True)
 
 
 def main():
+
+    try:
+        day = datetime.datetime.strptime(sys.argv[1], '%Y-%m-%d')
+    except ValueError:
+        logger.error('Failed to parse date')
+        sys.exit()
 
     # Setup a coreapi client
     client = get_client()
@@ -185,9 +173,9 @@ def main():
     stops = get_stops(client, schema, BOUNDING_BOX)
 
     # Collect realtime journeys
-    trips = get_trips(sys.argv[1:], stops)
+    trips = get_trips(day, stops)
 
-    emit_trips(trips)
+    emit_trips(day, trips)
 
 
 if __name__ == "__main__":

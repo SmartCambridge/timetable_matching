@@ -5,8 +5,7 @@ import os
 import sys
 
 # Where to find the real-time data
-LOAD_PATH = ('/Users/jw35/icp/data/sirivm_json/data_bin/'
-             '{year:0=d}/{month:0=2d}/{day:0=2d}/')
+LOAD_PATH = ('/Users/jw35/icp/data/sirivm_json/data_bin/')
 
 # Where to find the TFC API schema
 API_SCHEMA = 'https://tfc-app4.cl.cam.ac.uk/api/docs/'
