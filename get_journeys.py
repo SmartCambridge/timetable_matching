@@ -26,6 +26,34 @@ logger = logging.getLogger('__name__')
 
 NS = {'n': 'http://www.transxchange.org.uk/'}
 
+stops_cache = {}
+
+
+def expand_stop(tree, stop_point_ref):
+    '''
+    Given a StopPointRef, retrieve a dictionary containing all the
+    available StopPoint information
+    '''
+    logger.debug(stop_point_ref)
+    try:
+        stop = stops_cache[stop_point_ref]
+        logger.debug('stops_cache HIT')
+        return stop
+    except KeyError:
+        logger.debug('stops_cache MISS')
+        stop = tree.find("n:StopPoints/n:AnnotatedStopPointRef[n:StopPointRef='%s']" % stop_point_ref, NS)
+        result = {'StopPointRef': stop_point_ref}
+        for name in 'CommonName', 'Indicator', 'LocalityName', 'LocalityQualifier':
+            logger.debug(name)
+            element = stop.find('n:%s' % name, NS)
+            logger.debug(element)
+            if element is not None:
+                logger.debug("GOT IT %s", element.text)
+                result[name] = element.text
+        stops_cache[stop_point_ref] = result
+        logger.debug(repr(result))
+        return result
+
 
 def process(filename, day, interesting_stops):
     '''
@@ -34,105 +62,100 @@ def process(filename, day, interesting_stops):
 
     logger.debug('Processing %s', filename)
 
+    # Clear the stops_cache so we only use consistent information from one file
+
     tree = ET.parse(filename).getroot()
-
-    # Counting on there being only one Service, Line and Operator
-    # in each file...
-    service = tree.find('n:Services/n:Service', NS)
-
-    # Check the service start/end dates; bail out if out of range
-    service_start_element = service.find('n:OperatingPeriod/n:StartDate', NS)
-    service_start_date = datetime.datetime.strptime(service_start_element.text, '%Y-%m-%d').date()
-    if day < service_start_date:
-        return []
-
-    service_end_element = service.find('n:OperatingPeriod/n:EndDate', NS)
-    if service_end_element is not None:
-        service_end_date = datetime.datetime.strptime(service_end_element.text, '%Y-%m-%d').date()
-        if day > service_end_date:
-            return []
-
-    service_private_code = service.find('n:PrivateCode', NS).text
-    service_description = service.find('n:Description', NS).text
-    line_name = service.find('n:Lines/n:Line/n:LineName', NS).text
-
-    service_op_element = service.find('n:OperatingProfile', NS)
-    service_op = txc_helper.OperatingProfile.from_et(service_op_element)
-
-    operator = tree.find('n:Operators/n:Operator', NS)
-    operator_code = operator.find('n:OperatorCode', NS).text
 
     journeys = []
 
-    # For each vehicle journey...
-    for vjourney in tree.findall('n:VehicleJourneys/n:VehicleJourney', NS):
+    # Process each VehicleJourney in the file
+    for vehicle_journey in tree.findall('n:VehicleJourneys/n:VehicleJourney', NS):
 
-        journey = {
-            'service': {
-                'filename': filename,
-                'code': service_private_code,
-                'description': service_description,
-                'line_name': line_name,
-                'operator': operator_code,
-            }
-        }
+        logger.debug(filename)
+        logger.debug(vehicle_journey.find('n:PrivateCode', NS).text)
 
-        journey_op_element = vjourney.find('n:OperatingProfile', NS)
+        # Find and process the journey's 'parent' service
+        #
+        # This is probably inefficient, since TNDS data files seem only
+        # ever to contain one service, but at least this avoids having to
+        # make that assumption
+        service_ref = vehicle_journey.find('n:ServiceRef', NS).text
+        service = tree.find("n:Services/n:Service[n:ServiceCode='%s']" % service_ref, NS)
+
+        # Check the service start/end dates; bail out if out of range
+        service_start = service.find('n:OperatingPeriod/n:StartDate', NS)
+        service_start_date = datetime.datetime.strptime(service_start.text, '%Y-%m-%d').date()
+        if day < service_start_date:
+            continue
+
+        service_end = service.find('n:OperatingPeriod/n:EndDate', NS)
+        if service_end is not None:
+            service_end_date = datetime.datetime.strptime(service_end.text, '%Y-%m-%d').date()
+            if day > service_end_date:
+                continue
+
+        # Process the Service and Journey OperatingProfile; bail out
+        # if this isn't for us
+        service_op_element = service.find('n:OperatingProfile', NS)
+        service_op = txc_helper.OperatingProfile.from_et(service_op_element)
+
+        journey_op_element = vehicle_journey.find('n:OperatingProfile', NS)
         journey_op = txc_helper.OperatingProfile.from_et(journey_op_element)
         journey_op.defaults_from(service_op)
 
-        # Drop this journey if it isn't valid for today
         if not journey_op.should_show(day):
             continue
 
-        journey['private_code'] = vjourney.find('n:PrivateCode', NS).text
-        journey['departure_time'] = vjourney.find('n:DepartureTime', NS).text
-        journey_pattern_ref = vjourney.find('n:JourneyPatternRef', NS).text
-        journey['journey_pattern_ref'] = journey_pattern_ref
+        # Extract Operator
+        #
+        # As with Service, this is probably inefficient since TNDS files
+        # only ever seem to contain one Operator, but whatever
+        operator_id = service.find('n:RegisteredOperatorRef', NS).text
+        operator = tree.find('n:Operators/n:Operator[@id="%s"]' % operator_id, NS)
 
-        # Find corresponding JoureyPattern
-        journey_pattern = tree.find('n:Services/n:Service/n:StandardService/n:JourneyPattern[@id="%s"]' % journey_pattern_ref, NS)
-        journey['direction'] = journey_pattern.find('n:Direction', NS).text
+        # Find corresponding JourneyPattern
+        journey_pattern_id = vehicle_journey.find('n:JourneyPatternRef', NS).text
+        journey_pattern = tree.find('n:Services/n:Service/n:StandardService/n:JourneyPattern[@id="%s"]' % journey_pattern_id, NS)
 
-        # and JourneyPatternSection
-        journey_pattern_section_ref = journey_pattern.find('n:JourneyPatternSectionRefs', NS).text
-        journey['journey_pattern_section_ref'] = journey_pattern_section_ref
-        journey_pattern_section = tree.find('n:JourneyPatternSections/n:JourneyPatternSection[@id="%s"]' % journey_pattern_section_ref, NS)
+        # and loop over the included JourneyPatternSection
+        #
+        # As with Service and Operator, this is probably inefficient since
+        # TNDS files only ever seem to contain a single JourneyPatternSection
+        # in each JourneyPattern
+        journey_pattern_section_ids = []
+        journey_stops = []
+        for journey_pattern_section_id_element in journey_pattern.findall('n:JourneyPatternSectionRefs', NS):
+            journey_pattern_section_id = journey_pattern_section_id_element.text
+            journey_pattern_section_ids.append(journey_pattern_section_id)
+            journey_pattern_section = tree.find('n:JourneyPatternSections/n:JourneyPatternSection[@id="%s"]' % journey_pattern_section_id, NS)
 
-        # Get first and last stop
-        origin = journey_pattern_section.find('n:JourneyPatternTimingLink[1]/n:From/n:StopPointRef', NS).text
-        destination = journey_pattern_section.find('n:JourneyPatternTimingLink[last()]/n:To/n:StopPointRef', NS).text
+            for stop_point in journey_pattern_section.findall('n:JourneyPatternTimingLink/n:From/n:StopPointRef', NS):
+                journey_stops.append(expand_stop(tree, stop_point.text))
+                very_last_stop = journey_pattern_section.find('n:JourneyPatternTimingLink[last()]/n:To/n:StopPointRef', NS).text
+            journey_stops.append(expand_stop(tree, very_last_stop))
 
         # Drop this journey if neither its start stop nor its end
         # stop is in the stop list
-        if origin not in interesting_stops and destination not in interesting_stops:
+        if (journey_stops[0]['StopPointRef'] not in interesting_stops and
+            journey_stops[-1]['StopPointRef'] not in interesting_stops):
             continue
 
-        journey['Origin'] = {
-            'Ref': origin,
-            'Name': '',
-            'Indicator': '',
-            'Locality': '',
-            'LocalityQualifier': '',
+        # Populate the result
+        journey = {
+            'file': filename,
+            'PrivateCode': vehicle_journey.find('n:PrivateCode', NS).text,
+            'DepartureTime': vehicle_journey.find('n:DepartureTime', NS).text,
+            'Direction': journey_pattern.find('n:Direction', NS).text,
+            'JourneyPatternId': journey_pattern_id,
+            'JourneyPatternSectionIds': journey_pattern_section_ids,
+            'Service': {
+                'PrivateCode': service.find('n:PrivateCode', NS).text,
+                'Description': service.find('n:Description', NS).text,
+                'LineName': service.find('n:Lines/n:Line/n:LineName', NS).text,
+                'OperatorCode': operator.find('n:OperatorCode', NS).text,
+            },
+            'stops': journey_stops,
         }
-
-        journey['Destination'] = {
-            'atco_code': destination,
-            'Name': '',
-            'Indicator': '',
-            'Locality': '',
-            'LocalityQualifier': '',
-        }
-
-        # Collect all the stops.
-        # TODO Collect the positions of all the stops
-        # TODO Construct the bounding box of the stops
-        journey['stops'] = []
-        for stop_point_ref in journey_pattern_section.findall('n:JourneyPatternTimingLink/n:From/n:StopPointRef', NS):
-            stop_point = stop_point_ref.text
-            journey['stops'].append(stop_point)
-        # And then the 'To' of the last one
-        journey['stops'].append(destination)
 
         journeys.append(journey)
 
@@ -152,13 +175,18 @@ def get_journeys(day, stops, regions):
 
     journeys = []
 
-    for region in regions:
+    try:
 
-        path = os.path.join(TIMETABLE_PATH, region, '*.xml')
-        logger.info('Processing from %s', path)
+        for region in regions:
 
-        for filename in glob.iglob(path):
-            journeys.extend(process(filename, day, stops))
+            path = os.path.join(TIMETABLE_PATH, region, '*.xml')
+            logger.info('Processing from %s', path)
+
+            for filename in glob.iglob(path):
+                journeys.extend(process(filename, day, stops))
+
+    except KeyboardInterrupt:
+        pass
 
     logger.info('Got %s journeys', len(journeys))
 
