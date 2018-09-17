@@ -9,6 +9,9 @@ logger = logging.getLogger('__name__')
 # Where to find the real-time data
 LOAD_PATH = ('/Users/jw35/icp/data/sirivm_json/data_bin/')
 
+# Where to find the timetable data
+TIMETABLE_PATH = ('/Users/jw35/icp/data/TNDS_bus_data/sections/')
+
 # Where to find the TFC API schema
 API_SCHEMA = 'https://tfc-app4.cl.cam.ac.uk/api/docs/'
 
@@ -61,6 +64,9 @@ BANK_HOLIDAYS = {
     datetime.date(2019, 12, 28): ('BoxingDayHoliday', 'DisplacementHolidays')
 }
 
+# TNDS regious to process
+TNDS_REGIONS = ('EA', 'SE')
+
 
 def get_client():
     '''
@@ -82,12 +88,13 @@ def get_stops(client, schema, bounding_box):
     bounding_box. The dictionary key is the stop ATCOCode and
     the content of the information record returned by the API.
     '''
+    logger.info("Getting stops")
     stops = {}
     action = ['transport', 'stops', 'list']
     params = {'bounding_box': bounding_box, 'page_size': 500}
     page = 1
     while 1:
-        logger.info("Getting stops, page %s", page)
+        logger.debug("Getting stops, page %s", page)
         params['page'] = page
         api_results = client.action(schema, action, params=params)
         for result in api_results['results']:
@@ -98,12 +105,20 @@ def get_stops(client, schema, bounding_box):
     logger.info('Retrieved %s stops.', len(stops))
     return stops
 
-def update_bbox(box, lat, lng):
-    if box[0] is None or lat < box[0]:
-        box[0] = lat
-    if box[1] is None or lng < box[1]:
-        box[1] = lng
-    if box[2] is None or lat > box[2]:
-        box[2] = lat
-    if box[3] is None or lng > box[3]:
-        box[3] = lng
+
+def update_bbox(box, lng, lat):
+    '''
+    Update a bounding box
+
+    Update a bounding box represented as (min longitude, min latitude,
+    max longitude, max latitude) with a new point
+    '''
+
+    if box[0] is None or lng < box[0]:
+        box[0] = lng
+    if box[1] is None or lat < box[1]:
+        box[1] = lat
+    if box[2] is None or lng > box[2]:
+        box[2] = lng
+    if box[3] is None or lat > box[3]:
+        box[3] = lat
