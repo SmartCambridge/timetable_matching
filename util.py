@@ -1,8 +1,10 @@
 import calendar
 import coreapi
 import datetime
+import logging
 import os
-import sys
+
+logger = logging.getLogger('__name__')
 
 # Where to find the real-time data
 LOAD_PATH = ('/Users/jw35/icp/data/sirivm_json/data_bin/')
@@ -60,10 +62,6 @@ BANK_HOLIDAYS = {
 }
 
 
-def say(string):
-    print(string, file=sys.stderr)
-
-
 def get_client():
     '''
     Return a coreapi client instance initialised with an access token.
@@ -89,7 +87,7 @@ def get_stops(client, schema, bounding_box):
     params = {'bounding_box': bounding_box, 'page_size': 500}
     page = 1
     while 1:
-        say("Getting stops, page {}".format(page))
+        logger.info("Getting stops, page %s", page)
         params['page'] = page
         api_results = client.action(schema, action, params=params)
         for result in api_results['results']:
@@ -97,5 +95,15 @@ def get_stops(client, schema, bounding_box):
         if api_results['next'] is None:
             break
         page += 1
-    say('Retrieved {} stops.'.format(len(stops)))
+    logger.info('Retrieved %s stops.', len(stops))
     return stops
+
+def update_bbox(box, lat, lng):
+    if box[0] is None or lat < box[0]:
+        box[0] = lat
+    if box[1] is None or lng < box[1]:
+        box[1] = lng
+    if box[2] is None or lat > box[2]:
+        box[2] = lat
+    if box[3] is None or lng > box[3]:
+        box[3] = lng

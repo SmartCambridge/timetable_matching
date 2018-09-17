@@ -7,7 +7,7 @@ Given a date and one or more *directories* containing SIRI-VM data in
 Json, spit out all unique vehicle journeys (based on OriginRef,
 DestinationRef, OriginAimedDepartureTime, LineRef, OperatorRef,
 DirectionRef, and VehicleRef) where at least one of the origin or
-destination in our list of stops. Output the data in CSV.
+destination in our list of stops. Output the data in json.
 
 Input file format:
 
@@ -43,7 +43,6 @@ Input file format:
 ]
 """
 
-import csv
 import datetime
 import glob
 import json
@@ -52,28 +51,11 @@ import os
 import sys
 
 from util import (
-    API_SCHEMA, BOUNDING_BOX, LOAD_PATH, get_client, get_stops
+    API_SCHEMA, BOUNDING_BOX, LOAD_PATH, get_client, get_stops, update_bbox
 )
 
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 logger = logging.getLogger('__name__')
-
-
-def update_bbox(box, lng, lat):
-    '''
-    Update a bounding box
-
-    Update a bounding box represented as (min longitude, min latitude,
-    max longitude, max latitude) with a new point
-    '''
-    if lng < box[0]:
-        box[0] = lng
-    if lat < box[1]:
-        box[1] = lat
-    if lng > box[2]:
-        box[2] = lng
-    if lat > box[3]:
-        box[3] = lat
 
 
 def get_trips(date, stops):
@@ -110,20 +92,16 @@ def get_trips(date, stops):
 
             if key not in trips:
                 trips[key] = record
-                trips[key]['positions'] = [(record['acp_lng'],
+                trips[key]['positions'] = []
+                trips[key]['bbox'] = [None, None, None, None]
+
+            trips[key]['positions'].append((record['acp_lng'],
                                             record['acp_lat'],
                                             record['acp_ts']
-                                            )]
-                trips[key]['bbox'] = [record['acp_lng'], record['acp_lat'],
-                                      record['acp_lng'], record['acp_lat']]
-            else:
-                trips[key]['positions'].append((record['acp_lng'],
-                                                record['acp_lat'],
-                                                record['acp_ts']
-                                                ))
-                update_bbox(trips[key]['bbox'],
-                            record['acp_lng'],
-                            record['acp_lat'])
+                                            ))
+            update_bbox(trips[key]['bbox'],
+                        record['acp_lng'],
+                        record['acp_lat'])
 
     logger.info("Found %s raw trips journeys", len(trips))
 
