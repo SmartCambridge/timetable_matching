@@ -134,11 +134,15 @@ def emit_trips(day, trips):
         }
         json.dump(output, jsonfile, indent=4, sort_keys=True)
 
+        logger.info('Output done')
+
 
 def main():
 
+    logger.info('Start')
+
     try:
-        day = datetime.datetime.strptime(sys.argv[1], '%Y-%m-%d')
+        day = datetime.datetime.strptime(sys.argv[1], '%Y-%m-%d').date()
     except ValueError:
         logger.error('Failed to parse date')
         sys.exit()
@@ -154,6 +158,8 @@ def main():
     trips = get_trips(day, stops)
 
     emit_trips(day, trips)
+
+    logger.info('Stop')
 
 
 if __name__ == "__main__":
