@@ -65,9 +65,6 @@ def process(filename, day, interesting_stops):
     # Process each VehicleJourney in the file
     for vehicle_journey in tree.findall('n:VehicleJourneys/n:VehicleJourney', NS):
 
-        logger.debug(filename)
-        logger.debug(vehicle_journey.find('n:PrivateCode', NS).text)
-
         # Find and process the journey's 'parent' service
         #
         # This is probably inefficient, since TNDS data files seem only
@@ -120,7 +117,7 @@ def process(filename, day, interesting_stops):
         journey_pattern_id = vehicle_journey.find('n:JourneyPatternRef', NS).text
         journey_pattern = tree.find('n:Services/n:Service/n:StandardService/n:JourneyPattern[@id="%s"]' % journey_pattern_id, NS)
 
-        # and loop over the included JourneyPatternSection
+        # and loop over the included JourneyPatternSections
         #
         # As with Service and Operator, this is probably inefficient since
         # TNDS files only ever seem to contain a single JourneyPatternSection
@@ -159,8 +156,7 @@ def process(filename, day, interesting_stops):
 
                 journey_stops.append(stop)
 
-            # Append details for the last stop
-            to = link.find('n:To', NS)
+            # Append details for the final stop
             stop = expand_stop(tree, stops_cache, to.find('n:StopPointRef', NS).text)
             stop['Order'] = to.get('SequenceNumber')
             stop['Activity'] = to.find('n:Activity', NS).text
@@ -179,16 +175,18 @@ def process(filename, day, interesting_stops):
         journey = {
             'file': filename,
             'PrivateCode': vehicle_journey.find('n:PrivateCode', NS).text,
-            'DepartureTime': vehicle_journey.find('n:DepartureTime', NS).text,
-            'Direction': journey_pattern.find('n:Direction', NS).text,
-            'JourneyPatternId': journey_pattern_id,
-            'JourneyPatternSectionIds': journey_pattern_section_ids,
+            'VehicleJourneyCode': vehicle_journey.find('n:VehicleJourneyCode', NS).text,
+            'DepartureTime': departure_timestamp.isoformat(),
             'Service': {
                 'PrivateCode': service.find('n:PrivateCode', NS).text,
+                'ServiceCode': service.find('n:ServiceCode', NS).text,
                 'Description': service.find('n:Description', NS).text,
                 'LineName': service.find('n:Lines/n:Line/n:LineName', NS).text,
                 'OperatorCode': operator.find('n:OperatorCode', NS).text,
             },
+            'JourneyPatternId': journey_pattern_id,
+            'Direction': journey_pattern.find('n:Direction', NS).text,
+            'JourneyPatternSectionIds': journey_pattern_section_ids,
             'stops': journey_stops,
         }
 
@@ -238,7 +236,7 @@ def emit_journeys(day, journeys):
 
     with open(filename, 'w', newline='') as jsonfile:
         output = {
-            'day': day.strftime('%Y/%m/%d'),
+            'day': day.strftime('%Y-%m-%d'),
             'bounding_box': BOUNDING_BOX,
             'journeys': journeys
         }

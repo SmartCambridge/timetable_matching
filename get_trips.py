@@ -128,7 +128,7 @@ def emit_trips(day, trips):
 
     with open(filename, 'w', newline='') as jsonfile:
         output = {
-            'day': day.strftime("%Y/%m/%d"),
+            'day': day.strftime("%Y-%m-%d"),
             'bounding_box': BOUNDING_BOX,
             'trips': trips
         }
