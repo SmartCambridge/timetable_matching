@@ -15,6 +15,7 @@ import os
 import sys
 import xml.etree.ElementTree as ET
 
+import isodate
 import txc_helper
 
 from util import (
@@ -26,33 +27,25 @@ logger = logging.getLogger('__name__')
 
 NS = {'n': 'http://www.transxchange.org.uk/'}
 
-stops_cache = {}
 
-
-def expand_stop(tree, stop_point_ref):
+def expand_stop(tree, stops_cache, stop_point_ref):
     '''
     Given a StopPointRef, retrieve a dictionary containing all the
     available StopPoint information
     '''
-    logger.debug(stop_point_ref)
     try:
         stop = stops_cache[stop_point_ref]
-        logger.debug('stops_cache HIT')
-        return stop
     except KeyError:
-        logger.debug('stops_cache MISS')
-        stop = tree.find("n:StopPoints/n:AnnotatedStopPointRef[n:StopPointRef='%s']" % stop_point_ref, NS)
-        result = {'StopPointRef': stop_point_ref}
+        stop_element = tree.find("n:StopPoints/n:AnnotatedStopPointRef[n:StopPointRef='%s']" % stop_point_ref, NS)
+        stop = {'StopPointRef': stop_point_ref}
         for name in 'CommonName', 'Indicator', 'LocalityName', 'LocalityQualifier':
-            logger.debug(name)
-            element = stop.find('n:%s' % name, NS)
-            logger.debug(element)
+            element = stop_element.find('n:%s' % name, NS)
             if element is not None:
-                logger.debug("GOT IT %s", element.text)
-                result[name] = element.text
-        stops_cache[stop_point_ref] = result
-        logger.debug(repr(result))
-        return result
+                stop[name] = element.text
+        stops_cache[stop_point_ref] = stop
+
+    # Return a copy so it can be edited
+    return dict(stop)
 
 
 def process(filename, day, interesting_stops):
@@ -62,7 +55,8 @@ def process(filename, day, interesting_stops):
 
     logger.debug('Processing %s', filename)
 
-    # Clear the stops_cache so we only use consistent information from one file
+    stops_cache = {}
+    service_cache = {}
 
     tree = ET.parse(filename).getroot()
 
@@ -80,7 +74,11 @@ def process(filename, day, interesting_stops):
         # ever to contain one service, but at least this avoids having to
         # make that assumption
         service_ref = vehicle_journey.find('n:ServiceRef', NS).text
-        service = tree.find("n:Services/n:Service[n:ServiceCode='%s']" % service_ref, NS)
+        if service_ref in service_cache:
+            service = service_cache[service_ref]
+        else:
+            service = tree.find("n:Services/n:Service[n:ServiceCode='%s']" % service_ref, NS)
+            service_cache[service_ref] = service
 
         # Check the service start/end dates; bail out if out of range
         service_start = service.find('n:OperatingPeriod/n:StartDate', NS)
@@ -113,6 +111,11 @@ def process(filename, day, interesting_stops):
         operator_id = service.find('n:RegisteredOperatorRef', NS).text
         operator = tree.find('n:Operators/n:Operator[@id="%s"]' % operator_id, NS)
 
+        # Extract departure time
+        departure_time = vehicle_journey.find('n:DepartureTime', NS).text
+        departure_time_time = datetime.datetime.strptime(departure_time, '%H:%M:%S').time()
+        departure_timestamp = datetime.datetime.combine(day, departure_time_time)
+
         # Find corresponding JourneyPattern
         journey_pattern_id = vehicle_journey.find('n:JourneyPatternRef', NS).text
         journey_pattern = tree.find('n:Services/n:Service/n:StandardService/n:JourneyPattern[@id="%s"]' % journey_pattern_id, NS)
@@ -124,15 +127,47 @@ def process(filename, day, interesting_stops):
         # in each JourneyPattern
         journey_pattern_section_ids = []
         journey_stops = []
+        time = departure_timestamp
         for journey_pattern_section_id_element in journey_pattern.findall('n:JourneyPatternSectionRefs', NS):
+
             journey_pattern_section_id = journey_pattern_section_id_element.text
             journey_pattern_section_ids.append(journey_pattern_section_id)
             journey_pattern_section = tree.find('n:JourneyPatternSections/n:JourneyPatternSection[@id="%s"]' % journey_pattern_section_id, NS)
 
-            for stop_point in journey_pattern_section.findall('n:JourneyPatternTimingLink/n:From/n:StopPointRef', NS):
-                journey_stops.append(expand_stop(tree, stop_point.text))
-                very_last_stop = journey_pattern_section.find('n:JourneyPatternTimingLink[last()]/n:To/n:StopPointRef', NS).text
-            journey_stops.append(expand_stop(tree, very_last_stop))
+            for link in journey_pattern_section.findall('n:JourneyPatternTimingLink', NS):
+
+                # Append details for the from stop
+                From = link.find('n:From', NS)
+                stop = expand_stop(tree, stops_cache, From.find('n:StopPointRef', NS).text)
+                stop['Order'] = From.get('SequenceNumber')
+                stop['Activity'] = From.find('n:Activity', NS).text
+                stop['TimingStatus'] = From.find('n:TimingStatus', NS).text
+                stop['time'] = time.isoformat()
+
+                # Work out the time at the next stop
+                run_time = link.find('n:RunTime', NS).text
+                stop['run_time'] = run_time
+                run_time_duration = isodate.parse_duration(run_time)
+                time += run_time_duration
+
+                to = link.find('n:To', NS)
+                wait_time = to.find('n:WaitTime')
+                if wait_time is not None:
+                    stop['wait_time'] = wait_time.text
+                    wait_time_duration = isodate.parse_duration(wait_time.text)
+                    time += wait_time_duration
+
+                journey_stops.append(stop)
+
+            # Append details for the last stop
+            to = link.find('n:To', NS)
+            stop = expand_stop(tree, stops_cache, to.find('n:StopPointRef', NS).text)
+            stop['Order'] = to.get('SequenceNumber')
+            stop['Activity'] = to.find('n:Activity', NS).text
+            stop['TimingStatus'] = to.find('n:TimingStatus', NS).text
+            stop['time'] = time.isoformat()
+
+            journey_stops.append(stop)
 
         # Drop this journey if neither its start stop nor its end
         # stop is in the stop list
