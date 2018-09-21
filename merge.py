@@ -124,96 +124,68 @@ seps = {
     '*-1': ('\u2533', '\u2503', '\u251b'),
 }
 
+def expand(day, results):
 
-def sumarise(day, results):
+    rows = []
 
-    filename = 'merged-{:%Y-%m-%d}.csv'.format(day)
-    logger.info('Outputing CSV to %s', filename)
+    # For each result row
+    for result in results:
 
-    with open(filename, 'w', newline='') as csvfile:
+        # Get the key, and *copies* of the trip row(s) and the journey row(s)
+        key = result['key']
+        trips = result['trips'][:]
+        journeys = result['journeys'][:]
 
-        output = csv.writer(csvfile)
+        # Derive the type string
+        type = ((str(len(trips)) if len(trips) <= 1 else '*') +
+                '-' +
+                (str(len(journeys)) if len(journeys) <= 1 else '*'))
+        logger.debug('tlen %s, jlen %s, type %s', len(trips), len(journeys), type)
 
-        output.writerow((
-            'Type',
-            '',
-            'Departure time',
-            'From',
-            'To',
-            '',
-            'Trip-Line',
-            'Trip-Operator',
-            'Trip-Direction',
-            'Trip-Vehicle',
-            'Trip-Positions',
-            '',
-            '',
-            '',
-            'Journey-Line',
-            'Journey-Operator',
-            'Journey-Direction',
-        ))
+        # Pre-populate a list of separators
+        n_rows = max(len(trips), len(journeys))
+        if type in seps:
+            seperator = [seps[type][1] for _ in range(n_rows)]
+            seperator[0] = seps[type][0]
+            seperator[-1] = seps[type][2]
+        else:
+            seperator = [' ' for _ in range(n_rows)]
 
-        # For each result row
-        for result in results:
+        row_ctr = 0
+        # Process matching trips/journeys
+        while trips or journeys:
+            row = {
+                'type': type,
+                'time': key[0],
+                'origin': key[1],
+                'destination': key[2],
+                'trip': trips.pop(0) if trips else None,
+                'separator': seperator[row_ctr],
+                'journey': journeys.pop(0) if journeys else None,
+            }
+            rows.append(row)
+            row_ctr += 1
 
-            # Get the key, and *copies* of the trip row(s) and the journey row(s)
-            key = result['key']
-            trips = result['trips'][:]
-            journeys = result['journeys'][:]
+    logger.info('Expanded into %s rows', len(rows))
 
-            # Derive the type string
-            type = ((str(len(trips)) if len(trips) <= 1 else '*') +
-                    '-' +
-                    (str(len(journeys)) if len(journeys) <= 1 else '*'))
-            logger.debug('tlen %s, jlen %s, type %s', len(trips), len(journeys), type)
+    return rows
 
-            # Pre-populate a list of separators
-            rows = max(len(trips), len(journeys))
-            if type in seps:
-                seperator = [seps[type][1] for _ in range(rows)]
-                seperator[0] = seps[type][0]
-                seperator[-1] = seps[type][2]
-            else:
-                seperator = [' ' for _ in range(rows)]
 
-            row = 0
-            # Process matching trips/journeys
-            while trips and journeys:
-                r = (
-                    type,
-                    '',
-                    key[0],
-                    key[1],
-                    key[2],
-                    '',
-                ) + trip_fields(trips.pop(0)) + ('', seperator[row], '') + journey_fields(journeys.pop(0))
-                output.writerow(r)
-                row += 1
-            # Process remaining trips
-            while trips:
-                r = (
-                    type,
-                    '',
-                    key[0],
-                    key[1],
-                    key[2],
-                    '',
-                ) + trip_fields(trips.pop(0)) + ('', seperator[row], '') + journey_fields(None)
-                output.writerow(r)
-                row += 1
-            # Process remaining journeys
-            while journeys:
-                r = (
-                    type,
-                    '',
-                    key[0],
-                    key[1],
-                    key[2],
-                    '',
-                ) + trip_fields(None) + ('', seperator[row], '') + journey_fields(journeys.pop(0))
-                output.writerow(r)
-                row += 1
+def emit_merged(day, bounding_box, results):
+    '''
+    Print merged details in json to 'merged-<YYYY>-<mm>-<dd>.json'
+    '''
+
+    filename = 'merged-{:%Y-%m-%d}.json'.format(day)
+    logger.info('Outputing JSON to %s', filename)
+
+    with open(filename, 'w', newline='') as jsonfile:
+        output = {
+            'day': day.strftime('%Y-%m-%d'),
+            'bounding_box': bounding_box,
+            'merged': results
+        }
+        json.dump(results, jsonfile, indent=4, sort_keys=True)
 
     logger.info('Output done')
 
@@ -240,23 +212,65 @@ def journey_fields(journey):
     )
 
 
-def emit_merged(day, bounding_box, results):
+def emit_rows(day, bounding_box, rows):
     '''
-    Print merged details in json to 'merged-<YYYY>-<mm>-<dd>.json'
+    Print row details in json nad CSV to 'rows-<YYYY>-<mm>-<dd>.*'
     '''
 
-    filename = 'merged-{:%Y-%m-%d}.json'.format(day)
-    logger.info('Outputing JSON to %s', filename)
+    json_filename = 'rows-{:%Y-%m-%d}.json'.format(day)
+    logger.info('Outputing JSON to %s', json_filename)
 
-    with open(filename, 'w', newline='') as jsonfile:
+    with open(json_filename, 'w', newline='') as jsonfile:
         output = {
             'day': day.strftime('%Y-%m-%d'),
             'bounding_box': bounding_box,
-            'merged': results
+            'rows': rows
         }
-        json.dump(results, jsonfile, indent=4, sort_keys=True)
+        json.dump(output, jsonfile, indent=4, sort_keys=True)
 
-    logger.info('Output done')
+    logger.info('Json output done')
+
+    csv_filename = 'rows-{:%Y-%m-%d}.csv'.format(day)
+    logger.info('Outputing CSV to %s', csv_filename)
+
+    with open(csv_filename, 'w', newline='') as csvfile:
+
+        output = csv.writer(csvfile, dialect='excel', quoting=csv.QUOTE_ALL)
+
+        output.writerow((
+            'Type',
+            '',
+            'Departure time',
+            'From',
+            'To',
+            '',
+            'Trip-Line',
+            'Trip-Operator',
+            'Trip-Direction',
+            'Trip-Vehicle',
+            'Trip-Positions',
+            '',
+            '',
+            '',
+            'Journey-Line',
+            'Journey-Operator',
+            'Journey-Direction',
+        ))
+
+        # For each result row
+        for row in rows:
+
+            r = (
+                row['type'],
+                '',
+                row['time'],
+                row['origin'],
+                row['destination'],
+                '',
+            ) + trip_fields(row['trip']) + ('', row['separator'], '') + journey_fields(row['journey'])
+            output.writerow(r)
+
+    logger.info('CSV output done')
 
 
 def main():
@@ -282,11 +296,13 @@ def main():
                      trip_data['bounding_box'], journey_data['bounding_box'])
         sys.exit()
 
-    results = do_merge(trip_data, journey_data)
+    merged = do_merge(trip_data, journey_data)
 
-    emit_merged(day, trip_data['bounding_box'], results)
+    emit_merged(day, trip_data['bounding_box'], merged)
 
-    sumarise(day, results)
+    rows = expand(day, merged)
+
+    emit_rows(day, trip_data['bounding_box'], rows)
 
     logger.info('Stop')
 
