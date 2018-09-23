@@ -11,6 +11,11 @@
           integrity="sha512-lInM/apFSqyy1o6s89K4iQUKg6ppXEgsVxT35HbzUupEVRh2Eu9Wdl4tHj7dZO0s1uvplcYGmt3498TtHq+log=="
           crossorigin=""></script>
 
+    <!-- Leaflet.EasyButton --> 
+    <!-- https://github.com/CliffCloud/Leaflet.EasyButton -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-easybutton@2/src/easy-button.css">
+    <script src="https://cdn.jsdelivr.net/npm/leaflet-easybutton@2/src/easy-button.js"></script>
+
     <style>
 
     html: {
@@ -25,8 +30,8 @@
 
     .data-table {
         height: 50%;
-        width: 100%;
         overflow: scroll;
+        width: 100%;
     }
 
     .map {
@@ -37,11 +42,11 @@
 
 
     table {
+      background-color: #fff;
       border-collapse: collapse;
       border: 3px solid black;
       font-family: 'helvetica neue', helvetica, arial, sans-serif;
       font-size: 0.7rem;
-      background-color: #fff;
     }
 
     th {
@@ -59,8 +64,8 @@
     }
 
     tr {
-      border-top: 1px solid black;
       border-bottom: 1px solid black;
+      border-top: 1px solid black;
     }
 
     tbody tr:nth-child(even) {
@@ -77,43 +82,57 @@
 
     </style>
 
-    <script type="text/javascript" src="rows-2018-09-08.js"></script>
+    <script type="text/javascript" src="rows-2018-09-21.js"></script>
 
     <script type="text/javascript">
 
+        var trip_marker_opts = {
+            radius: 3,
+            weight: 1,
+            color: "blue",
+            fill: true,
+            stroke: true,
+            fillOpacity: 0.8
+        };
+
+        var trip_line_opts = {
+            color: "blue",
+        };
+
         function add_heading(row, text) {
             cell = document.createElement('th');
-            cell.appendChild(document.createTextNode(text))
-            row.appendChild(cell)
+            cell.appendChild(document.createTextNode(text));
+            row.appendChild(cell);
         }
 
         function add_data(row, text) {
             cell = document.createElement('td');
-            cell.appendChild(document.createTextNode(text))
-            row.appendChild(cell)
+            cell.appendChild(document.createTextNode(text));
+            row.appendChild(cell);
         }
-
-        function display_trip(row_num) {
-            alert("Display trip " + row_num);
-        }
-
-        function display_journey(row_num) {
-            alert("Display journey " + row_num);
-        }
-
 
         function init() {
 
             map = L.map('map');
+            trip_layer = L.layerGroup();
+            journey_layer = L.layerGroup();
 
             function display_trip(row_num) {
-                alert("Display trip " + row_num);
+                trip = data.rows[row_num].trip;
+                var polyline = L.polyline([], trip_line_opts);
+                polyline.addTo(trip_layer);
+                trip.positions.forEach(function(position) {
+                    polyline.addLatLng([position[1], position[0]]);
+                    marker = L.circleMarker([position[1], position[0]], trip_marker_opts)
+                        .bindPopup(" " + position[2]);
+                    marker.addTo(trip_layer);
+                });
+                map.fitBounds(polyline.getBounds());
             }
 
             function display_journey(row_num) {
                 alert("Display journey " + row_num);
             }
-
 
             var table = document.createElement('table');
 
@@ -139,7 +158,7 @@
             thead.appendChild(trow);
             table.appendChild(thead);
 
-            var counter = 1;
+            var counter = 0;
 
             var tbody = document.createElement('tbody');
 
@@ -149,7 +168,7 @@
                     trow.classList.add('mismatch');
                 }
 
-                add_heading(trow, counter);
+                add_heading(trow, counter+1);
 
                 add_data(trow, row.type);
                 add_data(trow, row.time);
@@ -220,11 +239,24 @@
 
             var osm = L.tileLayer('http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>',
-               maxZoom: 20
+               maxZoom: 19
             });
             map.addLayer(osm);
+            map.addLayer(trip_layer);
+            map.addLayer(journey_layer);
             var cambridge = L.latLng(52.20038, 0.1197);
             map.setView(cambridge, 14);
+
+            L.easyButton('<s><b>T</b></s>', function(btn, map) {
+                trip_layer.clearLayers();
+                map.setView(cambridge, 14);
+            }).addTo(map);
+
+            L.easyButton('<s><b>J</b></s>', function(btn, map) {
+                journey_layer.clearLayers();
+                map.setView(cambridge, 14);
+            }).addTo(map);
+
 
         }
 
