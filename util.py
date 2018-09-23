@@ -6,11 +6,15 @@ import os
 
 logger = logging.getLogger('__name__')
 
+home = os.getenv('HOME')
+
 # Where to find the real-time data
-LOAD_PATH = ('/Users/jw35/icp/data/sirivm_json/data_bin/')
+LOAD_PATH = os.path.join(home, 'icp/data/sirivm_json/data_bin/')
+if not os.path.isdir(LOAD_PATH):
+    LOAD_PATH = '/media/tfc/sirivm_json/data_bin/'
 
 # Where to find the timetable data
-TIMETABLE_PATH = ('/Users/jw35/icp/data/TNDS_bus_data/sections/')
+TIMETABLE_PATH = os.path.join(home, 'icp/data/TNDS_bus_data/sections/')
 
 # Where to find the TFC API schema
 API_SCHEMA = 'https://tfc-app4.cl.cam.ac.uk/api/docs/'
