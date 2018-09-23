@@ -19,33 +19,14 @@ import isodate
 import txc_helper
 
 from util import (
-    API_SCHEMA, BOUNDING_BOX, TIMETABLE_PATH, TNDS_REGIONS, get_client, get_stops
+    API_SCHEMA, BOUNDING_BOX, TIMETABLE_PATH, TNDS_REGIONS, get_client,
+    get_stops, lookup
 )
 
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 logger = logging.getLogger('__name__')
 
 NS = {'n': 'http://www.transxchange.org.uk/'}
-
-
-def expand_stop(tree, stops_cache, stop_point_ref):
-    '''
-    Given a StopPointRef, retrieve a dictionary containing all the
-    available StopPoint information
-    '''
-    try:
-        stop = stops_cache[stop_point_ref]
-    except KeyError:
-        stop_element = tree.find("n:StopPoints/n:AnnotatedStopPointRef[n:StopPointRef='%s']" % stop_point_ref, NS)
-        stop = {'StopPointRef': stop_point_ref}
-        for name in 'CommonName', 'Indicator', 'LocalityName', 'LocalityQualifier':
-            element = stop_element.find('n:%s' % name, NS)
-            if element is not None:
-                stop[name] = element.text
-        stops_cache[stop_point_ref] = stop
-
-    # Return a copy so it can be edited
-    return dict(stop)
 
 
 def process(filename, day, interesting_stops):
@@ -55,7 +36,7 @@ def process(filename, day, interesting_stops):
 
     logger.debug('Processing %s', filename)
 
-    stops_cache = {}
+    stops = set()
     service_cache = {}
 
     tree = ET.parse(filename).getroot()
@@ -135,11 +116,13 @@ def process(filename, day, interesting_stops):
 
                 # Append details for the from stop
                 From = link.find('n:From', NS)
-                stop = expand_stop(tree, stops_cache, From.find('n:StopPointRef', NS).text)
-                stop['Order'] = From.get('SequenceNumber')
-                stop['Activity'] = From.find('n:Activity', NS).text
-                stop['TimingStatus'] = From.find('n:TimingStatus', NS).text
-                stop['time'] = time.isoformat()
+                stop = {
+                    'StopPointRef': From.find('n:StopPointRef', NS).text,
+                    'Order': From.get('SequenceNumber'),
+                    'Activity': From.find('n:Activity', NS).text,
+                    'TimingStatus': From.find('n:TimingStatus', NS).text,
+                    'time': time.isoformat()
+                }
 
                 # Work out the time at the next stop
                 run_time = link.find('n:RunTime', NS).text
@@ -157,18 +140,20 @@ def process(filename, day, interesting_stops):
                 journey_stops.append(stop)
 
             # Append details for the final stop
-            stop = expand_stop(tree, stops_cache, to.find('n:StopPointRef', NS).text)
-            stop['Order'] = to.get('SequenceNumber')
-            stop['Activity'] = to.find('n:Activity', NS).text
-            stop['TimingStatus'] = to.find('n:TimingStatus', NS).text
-            stop['time'] = time.isoformat()
+            stop = {
+                'StopPointRef': to.find('n:StopPointRef', NS).text,
+                'Order': to.get('SequenceNumber'),
+                'Activity': to.find('n:Activity', NS).text,
+                'TimingStatus': to.find('n:TimingStatus', NS).text,
+                'time': time.isoformat()
+            }
 
             journey_stops.append(stop)
 
         # Drop this journey if neither its start stop nor its end
         # stop is in the stop list
         if (journey_stops[0]['StopPointRef'] not in interesting_stops and
-            journey_stops[-1]['StopPointRef'] not in interesting_stops):
+           journey_stops[-1]['StopPointRef'] not in interesting_stops):
             continue
 
         # Populate the result
@@ -192,12 +177,14 @@ def process(filename, day, interesting_stops):
 
         journeys.append(journey)
 
+        stops.update(set([s['StopPointRef'] for s in journey_stops]))
+
     logger.debug('%s yealded %s interesting journeys', filename, len(journeys))
 
-    return journeys
+    return journeys, stops
 
 
-def get_journeys(day, stops, regions):
+def get_journeys(day, interesting_stops, regions):
     '''
     Retrieve timetable journeys
 
@@ -206,7 +193,8 @@ def get_journeys(day, stops, regions):
     interested in
     '''
 
-    journeys = []
+    journey_list = []
+    stops_list = set()
 
     try:
 
@@ -214,19 +202,43 @@ def get_journeys(day, stops, regions):
 
             path = os.path.join(TIMETABLE_PATH, region, '*.xml')
             logger.info('Processing from %s', path)
+            j = s =0
 
             for filename in glob.iglob(path):
-                journeys.extend(process(filename, day, stops))
+                journeys, stops = process(filename, day, interesting_stops)
+                journey_list.extend(journeys)
+                stops_list.update(stops)
+                j += len(journeys)
+                s += len(stops)
+
+            logger.info('Got %s journeys referencing %s stops', j, s)
 
     except KeyboardInterrupt:
         pass
 
-    logger.info('Got %s journeys', len(journeys))
+    logger.info('Got total of %s journeys referencing %s stops', len(journey_list), len(stops_list))
 
-    return journeys
+    return journey_list, stops_list
 
 
-def emit_journeys(day, journeys):
+def expand_stops(client, schema, stop_ids, interesting_stops):
+    '''
+    Lookup full details of all stops used
+    '''
+
+    logger.info('Looking up %s stops', len(stop_ids))
+
+    other_stops = {}
+    results = {}
+    for stop in stop_ids:
+        results[stop] = lookup(client, schema, stop, interesting_stops, other_stops)
+
+    logger.info('Looked up %s stops, needed %s extra', len(results), len(other_stops))
+
+    return results
+
+
+def emit_journeys(day, journeys, stops):
     '''
     Print journey details in json to 'journeys-<YYYY>-<mm>-<dd>.json'
     '''
@@ -238,7 +250,8 @@ def emit_journeys(day, journeys):
         output = {
             'day': day.strftime('%Y-%m-%d'),
             'bounding_box': BOUNDING_BOX,
-            'journeys': journeys
+            'journeys': journeys,
+            'stops': stops,
         }
         json.dump(output, jsonfile, indent=4, sort_keys=True)
 
@@ -260,12 +273,14 @@ def main():
     schema = client.get(API_SCHEMA)
 
     # Get the list of all the stops we are interested in
-    stops = get_stops(client, schema, BOUNDING_BOX)
+    interesting_stops = get_stops(client, schema, BOUNDING_BOX)
 
     # Retrieve timetable journeys
-    journeys = get_journeys(day, stops, TNDS_REGIONS)
+    journeys, stop_ids = get_journeys(day, interesting_stops, TNDS_REGIONS)
 
-    emit_journeys(day, journeys)
+    stops = expand_stops(client, schema, stop_ids, interesting_stops)
+
+    emit_journeys(day, journeys, stops)
 
     logger.info('Stop')
 

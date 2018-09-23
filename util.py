@@ -24,52 +24,8 @@ API_SCHEMA = 'https://tfc-app4.cl.cam.ac.uk/api/docs/'
 # Bar Hill <-> Fulbourn
 BOUNDING_BOX = '0.007896,52.155610,0.225048,52.267842'
 
-# Names of days of the week and vv.
-WEEKDAYS = {day: i for i, day in enumerate(calendar.day_name)}
-DAYNAMES = calendar.day_name
-
-# Dates of UK Bank Holidays
-BANK_HOLIDAYS = {
-    datetime.date(2017, 1, 1): ('NewYearsDay', 'AllHolidaysExceptChristmas'),
-    datetime.date(2017, 4, 14): ('GoodFriday', 'AllHolidaysExceptChristmas'),
-    datetime.date(2017, 4, 17): ('EasterMonday', 'HolidayMondays', 'AllHolidaysExceptChristmas'),
-    datetime.date(2017, 5, 1): ('MayDay', 'HolidayMondays', 'AllHolidaysExceptChristmas'),
-    datetime.date(2017, 5, 29): ('SpringBank', 'HolidayMondays', 'AllHolidaysExceptChristmas'),
-    datetime.date(2017, 8, 28): ('LateSummerBankHolidayNotScotland', 'HolidayMondays', 'AllHolidaysExceptChristmas'),
-    datetime.date(2017, 12, 25): ('ChristmasDay', 'Christmas'),
-    datetime.date(2017, 12, 26): ('BoxingDay', 'Christmas'),
-
-    datetime.date(2018, 1, 1): ('NewYearsDay', 'AllHolidaysExceptChristmas'),
-    datetime.date(2018, 3, 30): ('GoodFriday', 'AllHolidaysExceptChristmas'),
-    datetime.date(2018, 4, 2): ('EasterMonday', 'HolidayMondays', 'AllHolidaysExceptChristmas'),
-    datetime.date(2018, 5, 7): ('MayDay', 'HolidayMondays', 'AllHolidaysExceptChristmas'),
-    datetime.date(2018, 5, 28): ('SpringBank', 'HolidayMondays', 'AllHolidaysExceptChristmas'),
-    datetime.date(2018, 8, 27): ('LateSummerBankHolidayNotScotland', 'HolidayMondays', 'AllHolidaysExceptChristmas'),
-    datetime.date(2018, 12, 25): ('ChristmasDay', 'Christmas'),
-    datetime.date(2018, 12, 26): ('BoxingDay', 'Christmas'),
-
-    datetime.date(2019, 1, 1): ('NewYearsDay', 'AllHolidaysExceptChristmas'),
-    datetime.date(2019, 4, 19): ('GoodFriday', 'AllHolidaysExceptChristmas'),
-    datetime.date(2019, 4, 22): ('EasterMonday', 'HolidayMondays', 'AllHolidaysExceptChristmas'),
-    datetime.date(2019, 5, 6): ('MayDay', 'HolidayMondays', 'AllHolidaysExceptChristmas'),
-    datetime.date(2019, 5, 27): ('SpringBank', 'HolidayMondays', 'AllHolidaysExceptChristmas'),
-    datetime.date(2019, 8, 26): ('LateSummerBankHolidayNotScotland', 'HolidayMondays', 'AllHolidaysExceptChristmas'),
-    datetime.date(2019, 12, 25): ('ChristmasDay', 'Christmas'),
-    datetime.date(2019, 12, 26): ('BoxingDay', 'Christmas'),
-
-    datetime.date(2019, 1, 1): ('NewYearsDay', 'AllHolidaysExceptChristmas'),
-    datetime.date(2019, 4, 10): ('GoodFriday', 'AllHolidaysExceptChristmas'),
-    datetime.date(2019, 4, 13): ('EasterMonday', 'HolidayMondays', 'AllHolidaysExceptChristmas'),
-    datetime.date(2019, 5, 4): ('MayDay', 'HolidayMondays', 'AllHolidaysExceptChristmas'),
-    datetime.date(2019, 5, 25): ('SpringBank', 'HolidayMondays', 'AllHolidaysExceptChristmas'),
-    datetime.date(2019, 8, 31): ('LateSummerBankHolidayNotScotland', 'HolidayMondays', 'AllHolidaysExceptChristmas'),
-    datetime.date(2019, 12, 25): ('ChristmasDay', 'Christmas'),
-    datetime.date(2019, 12, 26): ('BoxingDay', 'Christmas'),
-    datetime.date(2019, 12, 28): ('BoxingDayHoliday', 'DisplacementHolidays')
-}
-
 # TNDS regious to process
-TNDS_REGIONS = ('EA', 'SE')
+TNDS_REGIONS = ('EA', 'SE', 'EM')
 
 
 def get_client():
@@ -126,3 +82,28 @@ def update_bbox(box, lng, lat):
         box[2] = lng
     if box[3] is None or lat > box[3]:
         box[3] = lat
+
+
+def lookup(client, schema, stop, stops1, stops2):
+    '''
+    Lookup details of a bus stop by ATCOCode
+
+    Find stop details in stops1 or in stops2, and failing that
+    get the details via the client and cache the result in stops2
+    '''
+
+    if stop in stops1:
+        return stops1[stop]
+    if stop in stops2:
+        return stops2[stop]
+    try:
+        action = ['transport', 'stop', 'read']
+        params = {'atco_code': stop}
+        logger.debug("Getting stop details for %s", stop)
+        result = client.action(schema, action, params=params)
+    except coreapi.exceptions.ErrorMessage as e:
+        logger.error("Failed to lookup stop %s: %s", stop, e)
+        result = {}
+
+    stops2[result['atco_code']] = result
+    return result

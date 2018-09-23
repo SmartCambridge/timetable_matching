@@ -11,10 +11,14 @@
           integrity="sha512-lInM/apFSqyy1o6s89K4iQUKg6ppXEgsVxT35HbzUupEVRh2Eu9Wdl4tHj7dZO0s1uvplcYGmt3498TtHq+log=="
           crossorigin=""></script>
 
-    <!-- Leaflet.EasyButton --> 
+    <!-- Leaflet.EasyButton -->
     <!-- https://github.com/CliffCloud/Leaflet.EasyButton -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-easybutton@2/src/easy-button.css">
     <script src="https://cdn.jsdelivr.net/npm/leaflet-easybutton@2/src/easy-button.js"></script>
+
+    <!-- TableFilter -->
+    <!-- -->
+    <script src="tablefilter/tablefilter.js"></script>
 
     <style>
 
@@ -42,30 +46,30 @@
 
 
     table {
-      background-color: #fff;
-      border-collapse: collapse;
-      border: 3px solid black;
-      font-family: 'helvetica neue', helvetica, arial, sans-serif;
-      font-size: 0.7rem;
+        background-color: #fff;
+        border: 3px solid black;
+        border-collapse: collapse;
+        font-family: 'helvetica neue', helvetica, arial, sans-serif;
+        font-size: 0.7rem;
     }
 
     th {
-      letter-spacing: 2px;
-      padding: 0.2rem;
+        letter-spacing: 2px;
+        padding: 0.2rem;
     }
 
     td {
-      letter-spacing: 1px;
-      padding: 0.2rem;
+        letter-spacing: 1px;
+        padding: 0.2rem;
     }
 
     tbody td {
-      text-align: left;
+        text-align: left;
     }
 
     tr {
-      border-bottom: 1px solid black;
-      border-top: 1px solid black;
+        border-bottom: 1px solid black;
+        border-top: 1px solid black;
     }
 
     tbody tr:nth-child(even) {
@@ -99,6 +103,19 @@
             color: "blue",
         };
 
+        var journey_marker_opts = {
+            radius: 3,
+            weight: 1,
+            color: "green",
+            fill: true,
+            stroke: true,
+            fillOpacity: 0.8
+        };
+
+        var journey_line_opts = {
+            color: "green",
+        };
+
         function add_heading(row, text) {
             cell = document.createElement('th');
             cell.appendChild(document.createTextNode(text));
@@ -118,20 +135,30 @@
             journey_layer = L.layerGroup();
 
             function display_trip(row_num) {
-                trip = data.rows[row_num].trip;
+                var trip = data.rows[row_num].trip;
                 var polyline = L.polyline([], trip_line_opts);
                 polyline.addTo(trip_layer);
                 trip.positions.forEach(function(position) {
-                    polyline.addLatLng([position[1], position[0]]);
-                    marker = L.circleMarker([position[1], position[0]], trip_marker_opts)
-                        .bindPopup(" " + position[2]);
+                    polyline.addLatLng([position.Latitude, position.Longitude]);
+                    marker = L.circleMarker([position.Latitude, position.Longitude], trip_marker_opts)
+                        .bindPopup(" " + position.RecordedAtTime);
                     marker.addTo(trip_layer);
                 });
                 map.fitBounds(polyline.getBounds());
             }
 
             function display_journey(row_num) {
-                alert("Display journey " + row_num);
+                var journey = data.rows[row_num].journey;
+                var polyline = L.polyline([], journey_line_opts);
+                polyline.addTo(journey_layer);
+                journey.stops.forEach(function(stop) {
+                    var full_stop = data.stops[stop.StopPointRef];
+                    polyline.addLatLng([full_stop.latitude, full_stop.longitude]);
+                    marker = L.circleMarker([full_stop.latitude, full_stop.longitude], journey_marker_opts)
+                        .bindPopup(" " + full_stop.atco_code);
+                    marker.addTo(journey_layer);
+                });
+                map.fitBounds(polyline.getBounds());
             }
 
             var table = document.createElement('table');
@@ -236,6 +263,11 @@
 
             var results = document.getElementById('data-table');
             results.appendChild(table);
+
+            var tf = new TableFilter(document.querySelector('.data-table table'), {
+                base_path: 'tablefilter/'
+            });
+            tf.init();
 
             var osm = L.tileLayer('http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>',

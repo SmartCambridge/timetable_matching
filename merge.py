@@ -212,7 +212,7 @@ def journey_fields(journey):
     )
 
 
-def emit_rows(day, bounding_box, rows):
+def emit_rows(day, bounding_box, rows, stops):
     '''
     Print row details in json nad CSV to 'rows-<YYYY>-<mm>-<dd>.*'
     '''
@@ -224,7 +224,8 @@ def emit_rows(day, bounding_box, rows):
         output = {
             'day': day.strftime('%Y-%m-%d'),
             'bounding_box': bounding_box,
-            'rows': rows
+            'rows': rows,
+            'stops': stops
         }
         json.dump(output, jsonfile, indent=4, sort_keys=True)
 
@@ -302,7 +303,7 @@ def main():
 
     rows = expand(day, merged)
 
-    emit_rows(day, trip_data['bounding_box'], rows)
+    emit_rows(day, trip_data['bounding_box'], rows, journey_data['stops'])
 
     logger.info('Stop')
 

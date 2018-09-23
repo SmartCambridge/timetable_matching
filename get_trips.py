@@ -51,14 +51,17 @@ import os
 import sys
 
 from util import (
-    API_SCHEMA, BOUNDING_BOX, LOAD_PATH, get_client, get_stops, update_bbox
+    API_SCHEMA, BOUNDING_BOX, LOAD_PATH, get_client, get_stops,
+    update_bbox, lookup
 )
 
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 logger = logging.getLogger('__name__')
 
+other_stops = {}
 
-def get_trips(date, stops):
+
+def get_trips(client, schema, date, interesting_stops):
     '''
     Return a dictionary of all trips (realtime journeys) on the day
     indicated by year/month/day that have origin or destination stops in
@@ -79,6 +82,11 @@ def get_trips(date, stops):
 
         for record in data["request_data"]:
 
+            # Skip if neither origin nor destination in our list of stops
+            if (record['OriginRef'] not in interesting_stops and
+               record['DestinationRef'] not in interesting_stops):
+                continue
+
             # Form a unique key for this data
             key = (
                 record['OriginRef'],
@@ -90,32 +98,49 @@ def get_trips(date, stops):
                 record['VehicleRef'],
             )
 
+            JOURNEY_FIELDS = (
+                'DestinationName', 'DestinationRef', 'DirectionRef', 'LineRef',
+                'OperatorRef', 'OriginAimedDepartureTime', 'OriginName',
+                'OriginRef', 'VehicleRef'
+            )
+
             if key not in trips:
-                trips[key] = record
+                trips[key] = {field: record[field] for field in JOURNEY_FIELDS}
+
+                trips[key]['OriginStop'] = lookup(
+                    client, schema,
+                    record['OriginRef'],
+                    interesting_stops,
+                    other_stops)
+                trips[key]['DestinationStop'] = lookup(
+                    client, schema,
+                    record['DestinationRef'],
+                    interesting_stops,
+                    other_stops)
+
                 trips[key]['positions'] = []
+
                 trips[key]['bbox'] = [None, None, None, None]
 
-            trips[key]['positions'].append((record['acp_lng'],
-                                            record['acp_lat'],
-                                            record['acp_ts']
-                                            ))
+            POSITION_FIELDS = (
+                'Bearing', 'Delay', 'Latitude', 'Longitude', 'RecordedAtTime'
+            )
+
+            position = {field: record[field] for field in POSITION_FIELDS}
+            trips[key]['positions'].append(position)
+
             update_bbox(trips[key]['bbox'],
-                        record['acp_lng'],
-                        record['acp_lat'])
-
-    logger.info("Found %s raw trips journeys", len(trips))
-
-    # List journeys that either start or end at stops we are interested in
-    trip_list = [t for t in trips.values()
-                 if t['OriginRef'] in stops or t['DestinationRef'] in stops]
-
-    logger.info("Found %s interesting trips", len(trip_list))
+                        record['Longitude'],
+                        record['Latitude'])
 
     # Sort the position records by time
-    for trip in trip_list:
-        trip['positions'].sort(key=lambda pos: pos[2])
+    for trip in trips.values():
+        trip['positions'].sort(key=lambda pos: pos['RecordedAtTime'])
 
-    return trip_list
+    logger.info("Found %s trips", len(trips))
+    logger.info("Looked up %s additional stops", len(other_stops))
+
+    return list(trips.values())
 
 
 def emit_trips(day, trips):
@@ -152,10 +177,10 @@ def main():
     schema = client.get(API_SCHEMA)
 
     # Get the list of all the stops we are interested in
-    stops = get_stops(client, schema, BOUNDING_BOX)
+    interesting_stops = get_stops(client, schema, BOUNDING_BOX)
 
     # Collect realtime journeys
-    trips = get_trips(day, stops)
+    trips = get_trips(client, schema, day, interesting_stops)
 
     emit_trips(day, trips)
 
