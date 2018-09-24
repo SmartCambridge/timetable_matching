@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 
 '''
-Retrieve timetable information
+Retrieve trip information
 
-Walk one or more TNDS timetable files and emit all its
-VehicleJourneys as CSV
+Given a date, process TNDS timetable files and emit all the
+timetabled journeys that run on that date where at least one of the
+first and last stops in a list of stops defined by a bounding box.
+
+Output the resulting data in json.
 '''
 
 import datetime
@@ -20,7 +23,7 @@ import txc_helper
 
 from util import (
     API_SCHEMA, BOUNDING_BOX, TIMETABLE_PATH, TNDS_REGIONS, get_client,
-    get_stops, lookup
+    get_stops
 )
 
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
@@ -32,11 +35,13 @@ NS = {'n': 'http://www.transxchange.org.uk/'}
 def process(filename, day, interesting_stops):
     '''
     Process one TNDS data file
+
+    Return a list of journeys and the set of stop ATCOCodes that
+    they reference
     '''
 
     logger.debug('Processing %s', filename)
 
-    stops = set()
     service_cache = {}
 
     tree = ET.parse(filename).getroot()
@@ -50,7 +55,9 @@ def process(filename, day, interesting_stops):
         #
         # This is probably inefficient, since TNDS data files seem only
         # ever to contain one service, but at least this avoids having to
-        # make that assumption
+        # make that assumption. To address this, cache services as they
+        # are found
+
         service_ref = vehicle_journey.find('n:ServiceRef', NS).text
         if service_ref in service_cache:
             service = service_cache[service_ref]
@@ -71,7 +78,7 @@ def process(filename, day, interesting_stops):
                 continue
 
         # Process the Service and Journey OperatingProfile; bail out
-        # if this isn't for us
+        # if this isn't dalid on 'date'
         service_op_element = service.find('n:OperatingProfile', NS)
         service_op = txc_helper.OperatingProfile.from_et(service_op_element)
 
@@ -89,16 +96,17 @@ def process(filename, day, interesting_stops):
         operator_id = service.find('n:RegisteredOperatorRef', NS).text
         operator = tree.find('n:Operators/n:Operator[@id="%s"]' % operator_id, NS)
 
-        # Extract departure time
+        # Extract departure time in various formats
         departure_time = vehicle_journey.find('n:DepartureTime', NS).text
         departure_time_time = datetime.datetime.strptime(departure_time, '%H:%M:%S').time()
         departure_timestamp = datetime.datetime.combine(day, departure_time_time)
 
-        # Find corresponding JourneyPattern
+        # Find corresponding JourneyPattern...
         journey_pattern_id = vehicle_journey.find('n:JourneyPatternRef', NS).text
-        journey_pattern = tree.find('n:Services/n:Service/n:StandardService/n:JourneyPattern[@id="%s"]' % journey_pattern_id, NS)
+        journey_pattern = tree.find(
+            'n:Services/n:Service/n:StandardService/n:JourneyPattern[@id="%s"]' % journey_pattern_id, NS)
 
-        # and loop over the included JourneyPatternSections
+        # ...and loop over the included JourneyPatternSections
         #
         # As with Service and Operator, this is probably inefficient since
         # TNDS files only ever seem to contain a single JourneyPatternSection
@@ -110,11 +118,12 @@ def process(filename, day, interesting_stops):
 
             journey_pattern_section_id = journey_pattern_section_id_element.text
             journey_pattern_section_ids.append(journey_pattern_section_id)
-            journey_pattern_section = tree.find('n:JourneyPatternSections/n:JourneyPatternSection[@id="%s"]' % journey_pattern_section_id, NS)
+            journey_pattern_section = tree.find(
+                'n:JourneyPatternSections/n:JourneyPatternSection[@id="%s"]' % journey_pattern_section_id, NS)
 
             for link in journey_pattern_section.findall('n:JourneyPatternTimingLink', NS):
 
-                # Append details for the from stop
+                # Collect details for the 'from' stop
                 From = link.find('n:From', NS)
                 stop = {
                     'StopPointRef': From.find('n:StopPointRef', NS).text,
@@ -151,7 +160,8 @@ def process(filename, day, interesting_stops):
             journey_stops.append(stop)
 
         # Drop this journey if neither its start stop nor its end
-        # stop is in the stop list
+        # stop is in the list of 'interesting' stops (i.e. in the bounding
+        # box)
         if (journey_stops[0]['StopPointRef'] not in interesting_stops and
            journey_stops[-1]['StopPointRef'] not in interesting_stops):
             continue
@@ -174,73 +184,53 @@ def process(filename, day, interesting_stops):
             'JourneyPatternSectionIds': journey_pattern_section_ids,
             'stops': journey_stops,
         }
-
         journeys.append(journey)
-
-        stops.update(set([s['StopPointRef'] for s in journey_stops]))
 
     logger.debug('%s yealded %s interesting journeys', filename, len(journeys))
 
-    return journeys, stops
+    return journeys
 
 
 def get_journeys(day, interesting_stops, regions):
     '''
     Retrieve timetable journeys
 
-    Retrieve all the timetable journeys from all 'regious' that are
+    Retrieve all the timetable journeys from all 'regions' that are
     valid for 'day' and which start or end at one of the stops we are
-    interested in
+    interested in.
+
+    Return a list of journeys and the set of stop ATCOCodes that
+    they reference
     '''
 
     journey_list = []
-    stops_list = set()
 
     try:
-
         for region in regions:
 
             path = os.path.join(TIMETABLE_PATH, region, '*.xml')
             logger.info('Processing from %s', path)
-            j = s =0
+            journey_counter = stop_counter = 0
 
             for filename in glob.iglob(path):
-                journeys, stops = process(filename, day, interesting_stops)
+                journeys = process(filename, day, interesting_stops)
                 journey_list.extend(journeys)
-                stops_list.update(stops)
-                j += len(journeys)
-                s += len(stops)
+                journey_counter += len(journeys)
 
-            logger.info('Got %s journeys referencing %s stops', j, s)
+            logger.info(
+                'Got %s journeys', journey_counter)
 
     except KeyboardInterrupt:
         pass
 
-    logger.info('Got total of %s journeys referencing %s stops', len(journey_list), len(stops_list))
+    logger.info('Got total of %s journeys', len(journey_list))
 
-    return journey_list, stops_list
+    return journey_list
 
 
-def expand_stops(client, schema, stop_ids, interesting_stops):
+def emit_journeys(day, journeys):
     '''
-    Lookup full details of all stops used
-    '''
-
-    logger.info('Looking up %s stops', len(stop_ids))
-
-    other_stops = {}
-    results = {}
-    for stop in stop_ids:
-        results[stop] = lookup(client, schema, stop, interesting_stops, other_stops)
-
-    logger.info('Looked up %s stops, needed %s extra', len(results), len(other_stops))
-
-    return results
-
-
-def emit_journeys(day, journeys, stops):
-    '''
-    Print journey details in json to 'journeys-<YYYY>-<mm>-<dd>.json'
+    Print journey details to 'journeys-<YYYY>-<mm>-<dd>.json'
     '''
 
     filename = 'journeys-{:%Y-%m-%d}.json'.format(day)
@@ -250,8 +240,7 @@ def emit_journeys(day, journeys, stops):
         output = {
             'day': day.strftime('%Y-%m-%d'),
             'bounding_box': BOUNDING_BOX,
-            'journeys': journeys,
-            'stops': stops,
+            'journeys': journeys
         }
         json.dump(output, jsonfile, indent=4, sort_keys=True)
 
@@ -276,11 +265,9 @@ def main():
     interesting_stops = get_stops(client, schema, BOUNDING_BOX)
 
     # Retrieve timetable journeys
-    journeys, stop_ids = get_journeys(day, interesting_stops, TNDS_REGIONS)
+    journeys = get_journeys(day, interesting_stops, TNDS_REGIONS)
 
-    stops = expand_stops(client, schema, stop_ids, interesting_stops)
-
-    emit_journeys(day, journeys, stops)
+    emit_journeys(day, journeys)
 
     logger.info('Stop')
 

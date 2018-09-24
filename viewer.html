@@ -6,7 +6,7 @@
     <!-- Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.2.0/dist/leaflet.css"
           integrity="sha512-M2wvCLH6DSRazYeZRIm1JnYyh22purTM+FDB5CsyxtQJYeKq83arPe5wgbNmcFXGqiSH2XR8dT/fJISVA1r/zQ=="
-          crossorigin=""/>
+          crossorigin="" />
     <script src="https://unpkg.com/leaflet@1.2.0/dist/leaflet.js"
           integrity="sha512-lInM/apFSqyy1o6s89K4iQUKg6ppXEgsVxT35HbzUupEVRh2Eu9Wdl4tHj7dZO0s1uvplcYGmt3498TtHq+log=="
           crossorigin=""></script>
@@ -20,10 +20,13 @@
     <!-- -->
     <script src="tablefilter/tablefilter.js"></script>
 
+    <!-- moment -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.22.2/moment.min.js" integrity="sha256-CutOzxCRucUsn6C6TcEYsauvvYilEniTXldPa6/wu0k=" crossorigin="anonymous"></script>
+
     <style>
 
-    html: {
-        height: 100%
+    html {
+        height: 100%;
         width: 100%;
     }
 
@@ -44,49 +47,10 @@
 
     }
 
-
-    table {
-        background-color: #fff;
-        border: 3px solid black;
-        border-collapse: collapse;
-        font-family: 'helvetica neue', helvetica, arial, sans-serif;
-        font-size: 0.7rem;
-    }
-
-    th {
-        letter-spacing: 2px;
-        padding: 0.2rem;
-    }
-
-    td {
-        letter-spacing: 1px;
-        padding: 0.2rem;
-    }
-
-    tbody td {
-        text-align: left;
-    }
-
-    tr {
-        border-bottom: 1px solid black;
-        border-top: 1px solid black;
-    }
-
-    tbody tr:nth-child(even) {
-        background-color: #eee;
-    }
-
-    tbody tr.mismatch {
-        background-color: #fee;
-    }
-
-    tbody tr.mismatch:nth-child(even)  {
-        background-color: #edd;
-    }
-
     </style>
 
     <script type="text/javascript" src="rows-2018-09-21.js"></script>
+    <script type="text/javascript" src="stops-2018-09-21.js"></script>
 
     <script type="text/javascript">
 
@@ -106,14 +70,14 @@
         var journey_marker_opts = {
             radius: 3,
             weight: 1,
-            color: "green",
+            color: "orange",
             fill: true,
             stroke: true,
             fillOpacity: 0.8
         };
 
         var journey_line_opts = {
-            color: "green",
+            color: "orange",
         };
 
         function add_heading(row, text) {
@@ -128,6 +92,76 @@
             row.appendChild(cell);
         }
 
+        function trip_as_html(trip) {
+
+            var result = [];
+            result.push('<table>');
+            result.push(`<tr><th align="right">Time</th><td>${trip.OriginAimedDepartureTime}</td></tr>`);
+            result.push(`<tr><th align="right">From</th><td>${trip.OriginName} (${trip.OriginRef})</td></tr>`);
+            result.push(`<tr><th align="right">To</th><td>${trip.DestinationName} (${trip.DestinationRef})</td></tr>`);
+            result.push(`<tr><th align="right">Line</th><td>${trip.LineRef}</td></tr>`);
+            result.push(`<tr><th align="right">Operator</th><td>${trip.OperatorRef}</td></tr>`);
+            result.push(`<tr><th align="right">Direction</th><td>${trip.DirectionRef}</td></tr>`);
+            result.push(`<tr><th align="right">Vehicle</th><td>${trip.VehicleRef}</td></tr>`);
+            result.push('</table>');
+
+            return result.join(" ");
+        }
+
+        function position_as_html(position) {
+
+            var result = [];
+            result.push('<table>');
+            result.push(`<tr><th align="right">Time</th><td>${position.RecordedAtTime}</td></tr>`);
+            result.push(`<tr><th align="right">Bearing</th><td>${position.Bearing}</td></tr>`);
+            result.push(`<tr><th align="right">Delay</th><td>${position.Delay}</td></tr>`);
+            result.push('</table>');
+
+            return result.join(" ");
+        }
+
+        function journey_as_html(journey) {
+
+            var result = [];
+
+            var from = stops.stops[journey.stops[0].StopPointRef];
+            var to = stops.stops[journey.stops[journey.stops.length -1].StopPointRef]
+
+            result.push('<table>');
+            result.push(`<tr><th align="right">Time</th><td>${journey.DepartureTime}</td></tr>`);
+            result.push(`<tr><th align="right">From</th><td>${from.indicator} ${from.common_name}, ${from.locality_name} (${from.atco_code})</td></tr>`);
+            result.push(`<tr><th align="right">To</th><td>${to.indicator} ${to.common_name}, ${to.locality_name} (${to.atco_code})</td></tr>`);
+            result.push(`<tr><th align="right">Line</th><td>${journey.Service.LineName}</td></tr>`);
+            result.push(`<tr><th align="right">Operator</th><td>${journey.Service.OperatorCode}</td></tr>`);
+            result.push(`<tr><th align="right">Direction</th><td>${journey.Direction}</td></tr>`);
+            result.push('</table>');
+
+            return result.join(" ");
+        }
+
+
+        function stop_as_html(stop) {
+            return(`<p>${stop.indicator} ${stop.common_name}, ${stop.locality_name} (${stop.atco_code})</p>`)
+        }
+
+        function journey_stop_as_html(stop) {
+            var full_stop = stops.stops[stop.StopPointRef];
+            var result = [];
+            result.push('<table>');
+            result.push(`<tr><th align="right">Time</th><td>${stop.time}</td></tr>`);
+            result.push(`<tr><th align="right">Activity</th><td>${stop.Activity}</td></tr>`);
+            result.push(`<tr><th align="right">Order</th><td>${stop.Order}</td></tr>`);
+            result.push(`<tr><th align="right">Timing status</th><td>${stop.TimingStatus}</td></tr>`);
+            result.push(`<tr><th align="right">Run timr</th><td>${stop.run_time}</td></tr>`);
+            result.push(`<tr><th align="right">ATCO Code</th><td>${full_stop.atco_code}</td></tr>`);
+            result.push(`<tr><th align="right">Common name</th><td>${full_stop.common_name}</td></tr>`);
+            result.push(`<tr><th align="right">Indicator</th><td>${full_stop.indicator}</td></tr>`);
+            result.push(`<tr><th align="right">Locality name</th><td>${full_stop.locality_name}</td></tr>`);
+            result.push('</table>');
+
+            return result.join(" ");
+        }
+
         function init() {
 
             map = L.map('map');
@@ -135,30 +169,63 @@
             journey_layer = L.layerGroup();
 
             function display_trip(row_num) {
+
                 var trip = data.rows[row_num].trip;
                 var polyline = L.polyline([], trip_line_opts);
                 polyline.addTo(trip_layer);
-                trip.positions.forEach(function(position) {
+                polyline.bindPopup(trip_as_html(trip))
+                trip.positions.forEach(function(position, index, positions) {
                     polyline.addLatLng([position.Latitude, position.Longitude]);
-                    marker = L.circleMarker([position.Latitude, position.Longitude], trip_marker_opts)
-                        .bindPopup(" " + position.RecordedAtTime);
+                    var marker = L.circleMarker([position.Latitude, position.Longitude], trip_marker_opts)
+                        .bindPopup(position_as_html(position));
+                    if (index === 0) {
+                        marker.setStyle({ color: "red", radius: 5 })
+                    }
+                    else if (index === (positions.length -1)) {
+                        marker.setStyle({ color: "green", radius: 5 })
+                    }
                     marker.addTo(trip_layer);
                 });
-                map.fitBounds(polyline.getBounds());
+
+                var origin = stops.stops[trip.OriginRef]
+                var origin_marker = L.circleMarker([origin.latitude, origin.longitude], trip_marker_opts)
+                    .bindPopup(stop_as_html(origin));
+                origin_marker.setStyle({color: "red", radius: 10, fill: false, weight: 2 });
+                origin_marker.addTo(trip_layer);
+
+                var destination = stops.stops[trip.DestinationRef]
+                var destination_marker = L.circleMarker([destination.latitude, destination.longitude], trip_marker_opts)
+                    .bindPopup(stop_as_html(destination));
+                destination_marker.setStyle({color: "green", radius: 10, fill: false, weight: 2 });
+                destination_marker.addTo(trip_layer);
+
+                map.fitBounds(polyline.getBounds().extend(origin_marker.getLatLng()).extend(destination_marker.getLatLng()));
+
             }
 
             function display_journey(row_num) {
+
                 var journey = data.rows[row_num].journey;
                 var polyline = L.polyline([], journey_line_opts);
                 polyline.addTo(journey_layer);
-                journey.stops.forEach(function(stop) {
-                    var full_stop = data.stops[stop.StopPointRef];
+                polyline.bindPopup(journey_as_html(journey))
+
+                journey.stops.forEach(function(stop, index, journey_stops) {
+                    var full_stop = stops.stops[stop.StopPointRef];
                     polyline.addLatLng([full_stop.latitude, full_stop.longitude]);
                     marker = L.circleMarker([full_stop.latitude, full_stop.longitude], journey_marker_opts)
-                        .bindPopup(" " + full_stop.atco_code);
+                        .bindPopup(journey_stop_as_html(stop));
+                    if (index === 0) {
+                        marker.setStyle({ color: "red", radius: 5 })
+                    }
+                    else if (index === (journey_stops.length -1)) {
+                        marker.setStyle({ color: "green", radius: 5 })
+                    }
                     marker.addTo(journey_layer);
                 });
+
                 map.fitBounds(polyline.getBounds());
+
             }
 
             var table = document.createElement('table');
@@ -166,6 +233,7 @@
             var trow = document.createElement('tr');
             add_heading(trow, '');
             add_heading(trow, 'Type');
+            add_heading(trow, 'Date');
             add_heading(trow, 'Time');
             add_heading(trow, 'From');
             add_heading(trow, 'To');
@@ -198,7 +266,9 @@
                 add_heading(trow, counter+1);
 
                 add_data(trow, row.type);
-                add_data(trow, row.time);
+                timestamp = moment(row.time)
+                add_data(trow, timestamp.format("YYYY-MM-DD"));
+                add_data(trow, timestamp.format("HH:mm"));
                 add_data(trow, row.origin);
                 add_data(trow, row.destination);
                 if (row.trip) {
@@ -264,9 +334,24 @@
             var results = document.getElementById('data-table');
             results.appendChild(table);
 
-            var tf = new TableFilter(document.querySelector('.data-table table'), {
-                base_path: 'tablefilter/'
-            });
+            var tf_config = {
+                base_path: 'tablefilter/',
+                col_1: 'checklist',
+                col_4: 'checklist',
+                col_5: 'checklist',
+                col_6: 'checklist',
+                col_7: 'checklist',
+                col_8: 'checklist',
+                col_13: 'checklist',
+                col_14: 'checklist',
+                col_15: 'checklist',
+                alternate_rows: true,
+                rows_counter: true,
+                btn_reset: true,
+                status_bar: true,
+            }
+
+            var tf = new TableFilter(table, tf_config);
             tf.init();
 
             var osm = L.tileLayer('http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -276,19 +361,20 @@
             map.addLayer(osm);
             map.addLayer(trip_layer);
             map.addLayer(journey_layer);
-            var cambridge = L.latLng(52.20038, 0.1197);
-            map.setView(cambridge, 14);
 
             L.easyButton('<s><b>T</b></s>', function(btn, map) {
                 trip_layer.clearLayers();
-                map.setView(cambridge, 14);
+                map.fitBounds(area.getBounds());
             }).addTo(map);
 
             L.easyButton('<s><b>J</b></s>', function(btn, map) {
                 journey_layer.clearLayers();
-                map.setView(cambridge, 14);
+                map.fitBounds(area.getBounds());
             }).addTo(map);
 
+            // Mark the selection bounding box
+            var area = L.rectangle([[52.155610, 0.007896], [52.267842, 0.225048]], {color: "#000000", weight: 1, fill: false}).addTo(map);
+            map.fitBounds(area.getBounds());
 
         }
 

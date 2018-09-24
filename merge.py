@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 
 """
+Match trips to journeys
 
+Read a list of (vehicle) trips and a list of (timetable) journeys for a
+given day and attempt to match them. Output the result as a list of
+matched journeys and trips (as merged-<YYYY>-<mm>-<dd>.json).
 """
 
 import collections
@@ -109,7 +113,7 @@ def do_merge(trip_data, journey_data):
             'journeys': journey_index[journey_list.pop(0)]
         })
 
-    logger.info('Created %s merged rows', len(results))
+    logger.info('Created %s merged records', len(results))
 
     return results
 
@@ -123,52 +127,6 @@ seps = {
     '*-0': ('\u2513', '\u2503', '\u251b'),
     '*-1': ('\u2533', '\u2503', '\u251b'),
 }
-
-def expand(day, results):
-
-    rows = []
-
-    # For each result row
-    for result in results:
-
-        # Get the key, and *copies* of the trip row(s) and the journey row(s)
-        key = result['key']
-        trips = result['trips'][:]
-        journeys = result['journeys'][:]
-
-        # Derive the type string
-        type = ((str(len(trips)) if len(trips) <= 1 else '*') +
-                '-' +
-                (str(len(journeys)) if len(journeys) <= 1 else '*'))
-        logger.debug('tlen %s, jlen %s, type %s', len(trips), len(journeys), type)
-
-        # Pre-populate a list of separators
-        n_rows = max(len(trips), len(journeys))
-        if type in seps:
-            seperator = [seps[type][1] for _ in range(n_rows)]
-            seperator[0] = seps[type][0]
-            seperator[-1] = seps[type][2]
-        else:
-            seperator = [' ' for _ in range(n_rows)]
-
-        row_ctr = 0
-        # Process matching trips/journeys
-        while trips or journeys:
-            row = {
-                'type': type,
-                'time': key[0],
-                'origin': key[1],
-                'destination': key[2],
-                'trip': trips.pop(0) if trips else None,
-                'separator': seperator[row_ctr],
-                'journey': journeys.pop(0) if journeys else None,
-            }
-            rows.append(row)
-            row_ctr += 1
-
-    logger.info('Expanded into %s rows', len(rows))
-
-    return rows
 
 
 def emit_merged(day, bounding_box, results):
@@ -185,93 +143,9 @@ def emit_merged(day, bounding_box, results):
             'bounding_box': bounding_box,
             'merged': results
         }
-        json.dump(results, jsonfile, indent=4, sort_keys=True)
-
-    logger.info('Output done')
-
-
-def trip_fields(trip):
-    if trip is None:
-        return ('', '', '', '', '')
-    return (
-        trip['LineRef'],
-        trip['OperatorRef'],
-        trip['DirectionRef'],
-        trip['VehicleRef'],
-        len(trip['positions']),
-    )
-
-
-def journey_fields(journey):
-    if journey is None:
-        return ('', '', '')
-    return (
-        journey['Service']['LineName'],
-        journey['Service']['OperatorCode'],
-        journey['Direction']
-    )
-
-
-def emit_rows(day, bounding_box, rows, stops):
-    '''
-    Print row details in json nad CSV to 'rows-<YYYY>-<mm>-<dd>.*'
-    '''
-
-    json_filename = 'rows-{:%Y-%m-%d}.json'.format(day)
-    logger.info('Outputing JSON to %s', json_filename)
-
-    with open(json_filename, 'w', newline='') as jsonfile:
-        output = {
-            'day': day.strftime('%Y-%m-%d'),
-            'bounding_box': bounding_box,
-            'rows': rows,
-            'stops': stops
-        }
         json.dump(output, jsonfile, indent=4, sort_keys=True)
 
-    logger.info('Json output done')
-
-    csv_filename = 'rows-{:%Y-%m-%d}.csv'.format(day)
-    logger.info('Outputing CSV to %s', csv_filename)
-
-    with open(csv_filename, 'w', newline='') as csvfile:
-
-        output = csv.writer(csvfile, dialect='excel', quoting=csv.QUOTE_ALL)
-
-        output.writerow((
-            'Type',
-            '',
-            'Departure time',
-            'From',
-            'To',
-            '',
-            'Trip-Line',
-            'Trip-Operator',
-            'Trip-Direction',
-            'Trip-Vehicle',
-            'Trip-Positions',
-            '',
-            '',
-            '',
-            'Journey-Line',
-            'Journey-Operator',
-            'Journey-Direction',
-        ))
-
-        # For each result row
-        for row in rows:
-
-            r = (
-                row['type'],
-                '',
-                row['time'],
-                row['origin'],
-                row['destination'],
-                '',
-            ) + trip_fields(row['trip']) + ('', row['separator'], '') + journey_fields(row['journey'])
-            output.writerow(r)
-
-    logger.info('CSV output done')
+    logger.info('Output done')
 
 
 def main():
@@ -300,10 +174,6 @@ def main():
     merged = do_merge(trip_data, journey_data)
 
     emit_merged(day, trip_data['bounding_box'], merged)
-
-    rows = expand(day, merged)
-
-    emit_rows(day, trip_data['bounding_box'], rows, journey_data['stops'])
 
     logger.info('Stop')
 

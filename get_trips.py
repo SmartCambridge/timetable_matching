@@ -3,11 +3,11 @@
 """
 Retrieve trip information
 
-Given a date and one or more *directories* containing SIRI-VM data in
-Json, spit out all unique vehicle journeys (based on OriginRef,
-DestinationRef, OriginAimedDepartureTime, LineRef, OperatorRef,
-DirectionRef, and VehicleRef) where at least one of the origin or
-destination in our list of stops. Output the data in json.
+Given a date, process SIRI-VM data in JSON for that day and spit out all
+unique vehicle trips (based on OriginRef, DestinationRef,
+OriginAimedDepartureTime, LineRef, OperatorRef, DirectionRef, and
+VehicleRef) where at least one of the origin or destination in a list of
+stops defined by a bounding box. Output the resulting data in json.
 
 Input file format:
 
@@ -52,25 +52,27 @@ import sys
 
 from util import (
     API_SCHEMA, BOUNDING_BOX, LOAD_PATH, get_client, get_stops,
-    update_bbox, lookup
+    update_bbox
 )
 
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 logger = logging.getLogger('__name__')
 
-other_stops = {}
-
 
 def get_trips(client, schema, date, interesting_stops):
     '''
-    Return a dictionary of all trips (realtime journeys) on the day
+    Extract trips for a day
+
+    Return a list of all trips (realtime journeys) on the day
     indicated by year/month/day that have origin or destination stops in
     our stops list (and so fall within our bounding box)
     '''
 
     trips = {}
 
-    path = os.path.join(LOAD_PATH, date.strftime('%Y/%m/%d'), '*.json')
+    path = os.path.join(
+        LOAD_PATH, date.strftime('%Y'), date.strftime('%m'),
+        date.strftime('%d'), '*.json')
     logger.info('Processing from %s', path)
 
     for filename in glob.iglob(path):
@@ -98,30 +100,21 @@ def get_trips(client, schema, date, interesting_stops):
                 record['VehicleRef'],
             )
 
-            JOURNEY_FIELDS = (
+            # Collect all the data that's common for one trip
+            TRIP_FIELDS = (
                 'DestinationName', 'DestinationRef', 'DirectionRef', 'LineRef',
                 'OperatorRef', 'OriginAimedDepartureTime', 'OriginName',
                 'OriginRef', 'VehicleRef'
             )
 
             if key not in trips:
-                trips[key] = {field: record[field] for field in JOURNEY_FIELDS}
-
-                trips[key]['OriginStop'] = lookup(
-                    client, schema,
-                    record['OriginRef'],
-                    interesting_stops,
-                    other_stops)
-                trips[key]['DestinationStop'] = lookup(
-                    client, schema,
-                    record['DestinationRef'],
-                    interesting_stops,
-                    other_stops)
+                trips[key] = {field: record[field] for field in TRIP_FIELDS}
 
                 trips[key]['positions'] = []
 
                 trips[key]['bbox'] = [None, None, None, None]
 
+            # ... and the data that makes up a position report
             POSITION_FIELDS = (
                 'Bearing', 'Delay', 'Latitude', 'Longitude', 'RecordedAtTime'
             )
@@ -138,7 +131,6 @@ def get_trips(client, schema, date, interesting_stops):
         trip['positions'].sort(key=lambda pos: pos['RecordedAtTime'])
 
     logger.info("Found %s trips", len(trips))
-    logger.info("Looked up %s additional stops", len(other_stops))
 
     return list(trips.values())
 

@@ -25,7 +25,7 @@ API_SCHEMA = 'https://tfc-app4.cl.cam.ac.uk/api/docs/'
 BOUNDING_BOX = '0.007896,52.155610,0.225048,52.267842'
 
 # TNDS regious to process
-TNDS_REGIONS = ('EA', 'SE', 'EM')
+TNDS_REGIONS = ('EA', 'SE')
 
 
 def get_client():
@@ -48,7 +48,7 @@ def get_stops(client, schema, bounding_box):
     bounding_box. The dictionary key is the stop ATCOCode and
     the content of the information record returned by the API.
     '''
-    logger.info("Getting stops")
+    logger.info("Getting stops in %s", bounding_box)
     stops = {}
     action = ['transport', 'stops', 'list']
     params = {'bounding_box': bounding_box, 'page_size': 500}
