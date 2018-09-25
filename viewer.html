@@ -23,6 +23,12 @@
     <!-- moment -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.22.2/moment.min.js" integrity="sha256-CutOzxCRucUsn6C6TcEYsauvvYilEniTXldPa6/wu0k=" crossorigin="anonymous"></script>
 
+    <!-- Leaflet.awesome-markers -->
+    <!-- https://github.com/lvoogdt/Leaflet.awesome-markers -->
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.3.1/css/all.css" integrity="sha384-mzrmE5qonljUremFsqc01SB46JvROS7bZs3IO2EmfFsd15uHvIt+Y8vEf7N7fWAU" crossorigin="anonymous">
+    <link rel="stylesheet" href="awesome-markers/leaflet.awesome-markers.css" />
+    <script src="awesome-markers/leaflet.awesome-markers.js"></script>
+
     <style>
 
     html {
@@ -67,6 +73,32 @@
             color: "blue",
         };
 
+        var trip_first = L.AwesomeMarkers.icon({
+            prefix: 'fa',
+            icon: 'play-circle',
+            markerColor: 'darkblue'
+        });
+
+        var trip_last = L.AwesomeMarkers.icon({
+            prefix: 'fa',
+            icon: 'stop-circle',
+            markerColor: 'darkblue'
+        });
+
+        var trip_departure = L.AwesomeMarkers.icon({
+            prefix: 'fa',
+            icon: 'caret-right',
+            markerColor: 'darkblue'
+        });
+
+        var trip_arrival = L.AwesomeMarkers.icon({
+            prefix: 'fa',
+            icon: 'caret-left',
+            markerColor: 'darkblue'
+        });
+
+
+
         var journey_marker_opts = {
             radius: 3,
             weight: 1,
@@ -79,6 +111,19 @@
         var journey_line_opts = {
             color: "orange",
         };
+
+        var journey_departure = L.AwesomeMarkers.icon({
+            prefix: 'fa',
+            icon: 'caret-right',
+            markerColor: 'orange'
+        });
+
+        var journey_arrival = L.AwesomeMarkers.icon({
+            prefix: 'fa',
+            icon: 'caret-left',
+            markerColor: 'orange'
+        });
+
 
         function add_heading(row, text) {
             cell = document.createElement('th');
@@ -176,27 +221,32 @@
                 polyline.bindPopup(trip_as_html(trip))
                 trip.positions.forEach(function(position, index, positions) {
                     polyline.addLatLng([position.Latitude, position.Longitude]);
-                    var marker = L.circleMarker([position.Latitude, position.Longitude], trip_marker_opts)
-                        .bindPopup(position_as_html(position));
-                    if (index === 0) {
-                        marker.setStyle({ color: "red", radius: 5 })
+                    if (index == trip.departure_position) {
+                        L.marker([position.Latitude, position.Longitude], {icon: trip_departure}).addTo(trip_layer)
+                    }
+                    else if (index == trip.arrival_position) {
+                        L.marker([position.Latitude, position.Longitude], {icon: trip_arrival}).addTo(trip_layer)
+                    }
+                    else if (index === 0) {
+                        L.marker([position.Latitude, position.Longitude], {icon: trip_first}).addTo(trip_layer)
                     }
                     else if (index === (positions.length -1)) {
-                        marker.setStyle({ color: "green", radius: 5 })
+                        L.marker([position.Latitude, position.Longitude], {icon: trip_last}).addTo(trip_layer)
                     }
-                    marker.addTo(trip_layer);
+                    L.circleMarker([position.Latitude, position.Longitude], trip_marker_opts)
+                        .bindPopup(position_as_html(position)).addTo(trip_layer);
                 });
 
                 var origin = stops.stops[trip.OriginRef]
                 var origin_marker = L.circleMarker([origin.latitude, origin.longitude], trip_marker_opts)
                     .bindPopup(stop_as_html(origin));
-                origin_marker.setStyle({color: "red", radius: 10, fill: false, weight: 2 });
+                origin_marker.setStyle({color: "blue", radius: 10, fill: false, weight: 2 });
                 origin_marker.addTo(trip_layer);
 
                 var destination = stops.stops[trip.DestinationRef]
                 var destination_marker = L.circleMarker([destination.latitude, destination.longitude], trip_marker_opts)
                     .bindPopup(stop_as_html(destination));
-                destination_marker.setStyle({color: "green", radius: 10, fill: false, weight: 2 });
+                destination_marker.setStyle({color: "blue", radius: 10, fill: false, weight: 2 });
                 destination_marker.addTo(trip_layer);
 
                 map.fitBounds(polyline.getBounds().extend(origin_marker.getLatLng()).extend(destination_marker.getLatLng()));
@@ -215,11 +265,12 @@
                     polyline.addLatLng([full_stop.latitude, full_stop.longitude]);
                     marker = L.circleMarker([full_stop.latitude, full_stop.longitude], journey_marker_opts)
                         .bindPopup(journey_stop_as_html(stop));
+                    marker.addTo(journey_layer);
                     if (index === 0) {
-                        marker.setStyle({ color: "red", radius: 5 })
+                        L.marker([full_stop.latitude, full_stop.longitude], {icon: journey_departure}).addTo(journey_layer);
                     }
                     else if (index === (journey_stops.length -1)) {
-                        marker.setStyle({ color: "green", radius: 5 })
+                        L.marker([full_stop.latitude, full_stop.longitude], {icon: journey_arrival}).addTo(journey_layer);
                     }
                     marker.addTo(journey_layer);
                 });
@@ -238,16 +289,15 @@
             add_heading(trow, 'From');
             add_heading(trow, 'To');
             add_heading(trow, 'Trip-Line');
-            add_heading(trow, 'Trip-Operator');
-            add_heading(trow, 'Trip-Direction');
             add_heading(trow, 'Trip-Vehicle');
-            add_heading(trow, 'Trip-Positions');
+            add_heading(trow, 'Trip-Depart');
+            add_heading(trow, 'Trip-Arrive');
             add_heading(trow, '');
             add_heading(trow, '');
             add_heading(trow, '');
-            add_heading(trow, 'Service-Line');
-            add_heading(trow, 'Service-Operator');
-            add_heading(trow, 'Service-Direction');
+            add_heading(trow, 'Journey-Line');
+            add_heading(trow, 'Journey-Depart');
+            add_heading(trow, 'Journey-Arrive');
 
             var thead = document.createElement('thead');
             thead.appendChild(trow);
@@ -271,12 +321,22 @@
                 add_data(trow, timestamp.format("HH:mm"));
                 add_data(trow, row.origin);
                 add_data(trow, row.destination);
+
                 if (row.trip) {
                     add_data(trow, row.trip.LineRef);
-                    add_data(trow, row.trip.OperatorRef);
-                    add_data(trow, row.trip.DirectionRef);
                     add_data(trow, row.trip.VehicleRef);
-                    add_data(trow, row.trip.positions.length);
+                    if (row.trip.departure_position !== null) {
+                        add_data(trow, moment(row.trip.positions[row.trip.departure_position].RecordedAtTime).format("HH:mm"));
+                    }
+                    else {
+                        add_data(trow, '');
+                    }
+                    if (row.trip.arrival_position !== null) {
+                        add_data(trow, moment(row.trip.positions[row.trip.arrival_position].RecordedAtTime).format("HH:mm"));
+                    }
+                    else {
+                        add_data(trow, '');
+                    }
                     var a = document.createElement('a');
                     a.setAttribute('href', '#');
                     a.onclick = function(c) {
@@ -291,7 +351,6 @@
                     trow.appendChild(cell);
                 }
                 else {
-                    add_data(trow, '');
                     add_data(trow, '');
                     add_data(trow, '');
                     add_data(trow, '');
@@ -313,8 +372,8 @@
                     cell.appendChild(a);
                     trow.appendChild(cell);
                     add_data(trow, row.journey.Service.LineName);
-                    add_data(trow, row.journey.Service.OperatorCode);
-                    add_data(trow, row.journey.Direction);
+                    add_data(trow, moment(row.journey.stops[0].time).format("HH:mm"));
+                    add_data(trow, moment(row.journey.stops[row.journey.stops.length - 1].time).format("HH:mm"));
                 }
                 else {
                     add_data(trow, '');
@@ -336,15 +395,15 @@
 
             var tf_config = {
                 base_path: 'tablefilter/',
-                col_1: 'checklist',
-                col_4: 'checklist',
-                col_5: 'checklist',
-                col_6: 'checklist',
-                col_7: 'checklist',
-                col_8: 'checklist',
-                col_13: 'checklist',
-                col_14: 'checklist',
-                col_15: 'checklist',
+                //col_1: 'checklist',
+                //col_4: 'checklist',
+                //col_5: 'checklist',
+                //col_6: 'checklist',
+                //col_7: 'checklist',
+                //col_8: 'checklist',
+                //col_13: 'checklist',
+                //col_14: 'checklist',
+                //col_15: 'checklist',
                 alternate_rows: true,
                 rows_counter: true,
                 btn_reset: true,
@@ -361,13 +420,10 @@
             map.addLayer(osm);
             map.addLayer(trip_layer);
             map.addLayer(journey_layer);
+            L.control.scale().addTo(map);
 
-            L.easyButton('<s><b>T</b></s>', function(btn, map) {
+            L.easyButton('fa-trash-alt', function(btn, map) {
                 trip_layer.clearLayers();
-                map.fitBounds(area.getBounds());
-            }).addTo(map);
-
-            L.easyButton('<s><b>J</b></s>', function(btn, map) {
                 journey_layer.clearLayers();
                 map.fitBounds(area.getBounds());
             }).addTo(map);
