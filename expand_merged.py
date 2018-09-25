@@ -15,6 +15,8 @@ import json
 import logging
 import sys
 
+import isodate
+
 logger = logging.getLogger('__name__')
 
 
@@ -103,28 +105,6 @@ def emit_json(day, bounding_box, rows):
     logger.info('Json output done')
 
 
-def trip_fields(trip):
-    if trip is None:
-        return ('', '', '', '', '')
-    return (
-        trip['LineRef'],
-        trip['OperatorRef'],
-        trip['DirectionRef'],
-        trip['VehicleRef'],
-        len(trip['positions']),
-    )
-
-
-def journey_fields(journey):
-    if journey is None:
-        return ('', '', '')
-    return (
-        journey['Service']['LineName'],
-        journey['Service']['OperatorCode'],
-        journey['Direction']
-    )
-
-
 def emit_csv(day, rows):
     '''
     Print row details in CSV to 'rows-<YYYY>-<mm>-<dd>.csv'
@@ -139,35 +119,87 @@ def emit_csv(day, rows):
 
         output.writerow((
             'Type',
-            '',
+            'Departure day',
             'Departure time',
             'From',
             'To',
-            '',
             'Trip-Line',
             'Trip-Operator',
             'Trip-Direction',
             'Trip-Vehicle',
-            'Trip-Positions',
-            '',
-            '',
+            'Trip-Departure',
+            'Trip-Arrival',
             '',
             'Journey-Line',
             'Journey-Operator',
             'Journey-Direction',
+            'Journey-Departure',
+            'Journey-Arrival',
+            'Departure-Delay',
+            'Arrival-Delay'
         ))
 
         # For each result row
         for row in rows:
 
+            trip = row['trip']
+            departure = arrival = None
+            if trip is None:
+                trip_fields = ('', '', '', '', '', '')
+            else:
+                departure_position = trip['departure_position']
+                if departure_position is not None:
+                    departure = isodate.parse_datetime(trip['positions'][departure_position]['RecordedAtTime'][:19])
+                arrival_position = trip['arrival_position']
+                if arrival_position is not None:
+                    arrival = isodate.parse_datetime(trip['positions'][arrival_position]['RecordedAtTime'][:19])
+                trip_fields = (
+                    trip['LineRef'],
+                    trip['OperatorRef'],
+                    trip['DirectionRef'],
+                    trip['VehicleRef'],
+                    departure.strftime("%H:%M:%S") if departure else '',
+                    arrival.strftime("%H:%M:%S") if arrival else '',
+                )
+
+            journey = row['journey']
+            first = last = None
+            if journey is None:
+                journey_fields = ('', '', '', '', '')
+            else:
+                first = isodate.parse_datetime(journey['stops'][0]['time'])
+                last = isodate.parse_datetime(journey['stops'][-1]['time'])
+                journey_fields = (
+                    journey['Service']['LineName'],
+                    journey['Service']['OperatorCode'],
+                    journey['Direction'],
+                    first.strftime("%H:%M"),
+                    last.strftime("%H:%M")
+                )
+
+            departure_delay = ''
+            if departure is not None and first is not None:
+                departure_delay = (departure - first).total_seconds() / 60
+            arrival_delay = ''
+            if arrival is not None and last is not None:
+                arrival_delay = (arrival - last).total_seconds() / 60
+
+            time = isodate.parse_datetime(row['time'])
+
             r = (
-                row['type'],
-                '',
-                row['time'],
-                row['origin'],
-                row['destination'],
-                '',
-            ) + trip_fields(row['trip']) + ('', row['separator'], '') + journey_fields(row['journey'])
+                (
+                    row['type'],
+                    time.strftime("%Y-%m-%d"),
+                    time.strftime("%H:%M"),
+                    row['origin'],
+                    row['destination'],
+                ) +
+                trip_fields +
+                (row['separator'],) +
+                journey_fields +
+                (departure_delay, arrival_delay)
+            )
+
             output.writerow(r)
 
     logger.info('CSV output done')
