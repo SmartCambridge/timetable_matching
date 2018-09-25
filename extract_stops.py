@@ -42,13 +42,6 @@ def lookup_stops(merged_data):
 
     stop_ids = set()
 
-    # Setup a coreapi client
-    client = get_client()
-    schema = client.get(API_SCHEMA)
-
-    # Pre-load the list of all the stops in the bounding box
-    interesting_stops = get_stops(client, schema, BOUNDING_BOX)
-
     #logger.info(repr(merged_data)[:500])
 
     for match in merged_data['merged']:
@@ -61,7 +54,14 @@ def lookup_stops(merged_data):
             for stop in journey['stops']:
                 stop_ids.add(stop['StopPointRef'])
 
-    logger.info('Found %s stops', len(stop_ids))
+    logger.info('Found %s stops in merged data', len(stop_ids))
+
+    # Setup a coreapi client
+    client = get_client()
+    schema = client.get(API_SCHEMA)
+
+    # Pre-load the list of all the stops in the bounding box
+    interesting_stops = get_stops(client, schema, BOUNDING_BOX)
 
     other_stops = {}
     results = {}
@@ -71,6 +71,7 @@ def lookup_stops(merged_data):
     logger.info('Looked up %s stops, needed %s extra', len(results), len(other_stops))
 
     return results
+
 
 def emit_stops(day, bounding_box, stops):
     '''
