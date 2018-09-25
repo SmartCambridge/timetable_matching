@@ -52,11 +52,13 @@ import sys
 
 from util import (
     API_SCHEMA, BOUNDING_BOX, LOAD_PATH, get_client, get_stops,
-    update_bbox
+    update_bbox, lookup
 )
 
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 logger = logging.getLogger('__name__')
+
+other_stops = {}
 
 
 def get_trips(client, schema, date, interesting_stops):
@@ -108,7 +110,19 @@ def get_trips(client, schema, date, interesting_stops):
             )
 
             if key not in trips:
+
                 trips[key] = {field: record[field] for field in TRIP_FIELDS}
+
+                trips[key]['OriginStop'] = lookup(
+                    client, schema,
+                    record['OriginRef'],
+                    interesting_stops,
+                    other_stops)
+                trips[key]['DestinationStop'] = lookup(
+                    client, schema,
+                    record['DestinationRef'],
+                    interesting_stops,
+                    other_stops)
 
                 trips[key]['positions'] = []
 
