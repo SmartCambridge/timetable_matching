@@ -15,7 +15,6 @@ import json
 import logging
 import sys
 
-logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 logger = logging.getLogger('__name__')
 
 
@@ -118,15 +117,24 @@ def do_merge(trip_data, journey_data):
     return results
 
 
-seps = {
-    '0-1': (' ', ' ', '\u21a6'),
-    '1-0': (' ', ' ', '\u21a4'),
-    '*-*': ('\u2533', '\u2503', '\u253b'),
-    '0-*': ('\u250f', '\u2503', '\u2517'),
-    '1-*': ('\u2533', '\u2503', '\u2517'),
-    '*-0': ('\u2513', '\u2503', '\u251b'),
-    '*-1': ('\u2533', '\u2503', '\u251b'),
-}
+def clasify_matches(merged):
+    '''
+    Add a type field to matches
+    '''
+
+    logger.info('Classifying %s merged records', len(merged))
+
+    for merge in merged:
+        trips = merge['trips']
+        journeys = merge['journeys']
+        # Derive the type string
+        type = ((str(len(trips)) if len(trips) <= 1 else '*') +
+                '-' +
+                (str(len(journeys)) if len(journeys) <= 1 else '*'))
+        merge['type'] = type
+        logger.debug('tlen %s, jlen %s, type %s', len(trips), len(journeys), type)
+
+    logger.info('Classification done')
 
 
 def emit_merged(day, bounding_box, results):
@@ -150,6 +158,8 @@ def emit_merged(day, bounding_box, results):
 
 def main():
 
+    logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
+
     logger.info('Start')
 
     try:
@@ -172,6 +182,8 @@ def main():
         sys.exit()
 
     merged = do_merge(trip_data, journey_data)
+
+    clasify_matches(merged)
 
     emit_merged(day, trip_data['bounding_box'], merged)
 

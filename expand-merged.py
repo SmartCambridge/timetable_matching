@@ -15,8 +15,6 @@ import json
 import logging
 import sys
 
-
-logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 logger = logging.getLogger('__name__')
 
 
@@ -51,16 +49,11 @@ def expand(day, results):
     # For each result row
     for result in results:
 
-        # Get the key, and *copies* of the trip row(s) and the journey row(s)
+        # Get the key, type, and *copies* of the trip row(s) and the journey row(s)
         key = result['key']
+        type = result['type']
         trips = result['trips'][:]
         journeys = result['journeys'][:]
-
-        # Derive the type string
-        type = ((str(len(trips)) if len(trips) <= 1 else '*') +
-                '-' +
-                (str(len(journeys)) if len(journeys) <= 1 else '*'))
-        logger.debug('tlen %s, jlen %s, type %s', len(trips), len(journeys), type)
 
         # Pre-populate a list of separators
         n_rows = max(len(trips), len(journeys))
@@ -181,6 +174,8 @@ def emit_csv(day, rows):
 
 
 def main():
+
+    logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 
     logger.info('Start')
 
