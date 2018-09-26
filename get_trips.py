@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""
+'''
 Retrieve trip information
 
 Given a date, process SIRI-VM data in JSON for that day and spit out all
@@ -41,7 +41,7 @@ Input file format:
     },
     ...
 ]
-"""
+'''
 
 import datetime
 import glob
