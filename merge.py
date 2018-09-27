@@ -9,7 +9,6 @@ matched journeys and trips (as merged-<YYYY>-<mm>-<dd>.json).
 """
 
 import collections
-import csv
 import datetime
 import json
 import logging
@@ -56,7 +55,7 @@ def do_merge(trip_data, journey_data):
     trip_list = []
     for trip in trip_data['trips']:
         key = (
-            trip['OriginAimedDepartureTime'][:19],
+            trip['OriginAimedDepartureTime'],
             trip['OriginRef'],
             trip['DestinationRef']
         )

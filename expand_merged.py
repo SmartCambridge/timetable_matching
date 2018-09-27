@@ -52,6 +52,7 @@ def expand(day, results):
     for result in results:
 
         # Get the key, type, and *copies* of the trip row(s) and the journey row(s)
+        logger.info(repr(result))
         key = result['key']
         type = result['type']
         trips = result['trips'][:]
@@ -149,10 +150,10 @@ def emit_csv(day, rows):
             else:
                 departure_position = trip['departure_position']
                 if departure_position is not None:
-                    departure = isodate.parse_datetime(trip['positions'][departure_position]['RecordedAtTime'][:19])
+                    departure = isodate.parse_datetime(trip['positions'][departure_position]['RecordedAtTime'])
                 arrival_position = trip['arrival_position']
                 if arrival_position is not None:
-                    arrival = isodate.parse_datetime(trip['positions'][arrival_position]['RecordedAtTime'][:19])
+                    arrival = isodate.parse_datetime(trip['positions'][arrival_position]['RecordedAtTime'])
                 trip_fields = (
                     trip['LineRef'],
                     trip['OperatorRef'],

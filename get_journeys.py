@@ -19,6 +19,7 @@ import sys
 import xml.etree.ElementTree as ET
 
 import isodate
+import pytz
 import txc_helper
 
 from util import (
@@ -30,6 +31,8 @@ logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 logger = logging.getLogger('__name__')
 
 NS = {'n': 'http://www.transxchange.org.uk/'}
+
+UK_LOCAL = pytz.timezone('Europe/London')
 
 
 def process(filename, day, interesting_stops):
@@ -99,7 +102,7 @@ def process(filename, day, interesting_stops):
         # Extract departure time in various formats
         departure_time = vehicle_journey.find('n:DepartureTime', NS).text
         departure_time_time = datetime.datetime.strptime(departure_time, '%H:%M:%S').time()
-        departure_timestamp = datetime.datetime.combine(day, departure_time_time)
+        departure_timestamp = UK_LOCAL.localize(datetime.datetime.combine(day, departure_time_time))
 
         # Find corresponding JourneyPattern...
         journey_pattern_id = vehicle_journey.find('n:JourneyPatternRef', NS).text
@@ -130,7 +133,7 @@ def process(filename, day, interesting_stops):
                     'Order': From.get('SequenceNumber'),
                     'Activity': From.find('n:Activity', NS).text,
                     'TimingStatus': From.find('n:TimingStatus', NS).text,
-                    'time': time.isoformat()
+                    'time': time.isoformat(timespec='seconds')
                 }
 
                 # Work out the time at the next stop
@@ -154,7 +157,7 @@ def process(filename, day, interesting_stops):
                 'Order': to.get('SequenceNumber'),
                 'Activity': to.find('n:Activity', NS).text,
                 'TimingStatus': to.find('n:TimingStatus', NS).text,
-                'time': time.isoformat()
+                'time': time.isoformat(timespec='seconds')
             }
 
             journey_stops.append(stop)
@@ -171,7 +174,7 @@ def process(filename, day, interesting_stops):
             'file': filename,
             'PrivateCode': vehicle_journey.find('n:PrivateCode', NS).text,
             'VehicleJourneyCode': vehicle_journey.find('n:VehicleJourneyCode', NS).text,
-            'DepartureTime': departure_timestamp.isoformat(),
+            'DepartureTime': departure_timestamp.isoformat(timespec='seconds'),
             'Service': {
                 'PrivateCode': service.find('n:PrivateCode', NS).text,
                 'ServiceCode': service.find('n:ServiceCode', NS).text,
