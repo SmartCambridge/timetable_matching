@@ -33,6 +33,19 @@ def load_merged(day):
     return merged
 
 
+def load_stops(day):
+
+    filename = 'stops-{:%Y-%m-%d}.json'.format(day)
+    logger.info('Reading %s', filename)
+
+    with open(filename, 'r', newline='') as jsonfile:
+        stops = json.load(jsonfile)
+
+    logger.info('Done')
+
+    return stops
+
+
 seps = {
     '0-1': (' ', ' ', '\u21a6'),
     '1-0': (' ', ' ', '\u21a4'),
@@ -44,12 +57,37 @@ seps = {
 }
 
 
-def expand(day, results):
+def describe_stop(stop_code, stops):
+
+    if stop_code not in stops:
+        return stop_code
+
+    result = []
+    stop = stops[stop_code]
+    if 'common_name' in stop:
+        if ('indicator' in stop and
+            stop['indicator'] in ('opp', 'outside', 'o/s', 'adj', 'near',
+                                  'nr', 'behind', 'inside', 'by', 'in',
+                                  'at', 'on', 'before', 'just before',
+                                  'after', 'just after', 'corner of')):
+            result.append(stop['indicator'] + ' ' + stop['common_name'])
+        elif ('indicator' in stop):
+            result.append(stop['common_name'] + ' ' + stop['indicator'])
+        else:
+            result.append(stop['common_name'])
+
+    if 'locality_name' in stop:
+        result.append(stop['locality_name'])
+
+    return ', '.join(result)
+
+
+def expand(day, merged, stops):
 
     rows = []
 
     # For each result row
-    for result in results:
+    for result in merged:
 
         # Get the key, type, and *copies* of the trip row(s) and the journey row(s)
         key = result['key']
@@ -73,7 +111,9 @@ def expand(day, results):
                 'type': type,
                 'time': key[0],
                 'origin': key[1],
+                'origin_desc': describe_stop(key[1], stops),
                 'destination': key[2],
+                'destination_desc': describe_stop(key[2], stops),
                 'journey': journeys.pop(0) if journeys else None,
                 'separator': seperator[row_ctr],
                 'trip': trips.pop(0) if trips else None,
@@ -105,7 +145,7 @@ def emit_json(day, bounding_box, rows):
     logger.info('Json output done')
 
 
-def emit_csv(day, rows):
+def emit_csv(day, rows, stops):
     '''
     Print row details in CSV to 'rows-<YYYY>-<mm>-<dd>.csv'
     '''
@@ -123,20 +163,20 @@ def emit_csv(day, rows):
             'Time',
             'From',
             'To',
-            'Journey-Line',
-            'Journey-Operator',
-            'Journey-Direction',
-            'Journey-Departure',
-            'Journey-Arrival',
+            'Journey: Line',
+            'Journey: Operator',
+            'Journey: Direction',
+            'Journey: Departure',
+            'Journey: Arrival',
             ' ',
-            'Trip-Line',
-            'Trip-Operator',
-            'Trip-Direction',
-            'Trip-Vehicle',
-            'Trip-Departure',
-            'Trip-Arrival',
-            'Delay-Departure',
-            'Delay-Arrival',
+            'Trip: Line',
+            'Trip: Operator',
+            'Trip: Direction',
+            'Trip: Vehicle',
+            'Trip: Departure',
+            'Trip: Arrival',
+            'Delay: Departure',
+            'Delay: Arrival',
         ))
 
         # For each result row
@@ -177,12 +217,12 @@ def emit_csv(day, rows):
                     arrival.strftime("%H:%M:%S") if arrival else '',
                 )
 
-            departure_delay = ''
+            departure_delay = None
             if departure is not None and first is not None:
-                departure_delay = (departure - first).total_seconds() / 60
-            arrival_delay = ''
+                departure_delay = (departure - first)
+            arrival_delay = None
             if arrival is not None and last is not None:
-                arrival_delay = (arrival - last).total_seconds() / 60
+                arrival_delay = (arrival - last)
 
             time = isodate.parse_datetime(row['time'])
 
@@ -191,18 +231,26 @@ def emit_csv(day, rows):
                     row['type'],
                     time.strftime("%Y-%m-%d"),
                     time.strftime("%H:%M"),
-                    row['origin'],
-                    row['destination'],
+                    row['origin_desc'],
+                    row['destination_desc'],
                 ) +
                 journey_fields +
                 (row['separator'],) +
                 trip_fields +
-                (departure_delay, arrival_delay)
+                (format_timedelta(departure_delay),
+                 format_timedelta(arrival_delay))
             )
 
             output.writerow(r)
 
     logger.info('CSV output done')
+
+
+def format_timedelta(delta):
+    if delta is None:
+        return ''
+    sign = '-' if delta.total_seconds() < 0 else ''
+    return sign + isodate.strftime(delta, '%P')
 
 
 def main():
@@ -218,11 +266,22 @@ def main():
         sys.exit()
 
     merged_data = load_merged(day)
+    stops_data = load_stops(day)
 
-    rows = expand(day, merged_data['merged'])
+    if merged_data['day'] != stops_data['day']:
+        logger.error('Date in merged (%s) doesn\'t match that in stops (%s)',
+                     merged_data['day'], stops_data['day'])
+        sys.exit()
+
+    if merged_data['bounding_box'] != stops_data['bounding_box']:
+        logger.error('Bounding box in merged (%s) doesn\'t match that in stops (%s)',
+                     merged_data['bounding_box'], stops_data['bounding_box'])
+        sys.exit()
+
+    rows = expand(day, merged_data['merged'], stops_data['stops'])
 
     emit_json(day, merged_data['bounding_box'], rows)
-    emit_csv(day, rows)
+    emit_csv(day, rows, stops_data['stops'])
 
     logger.info('Stop')
 
