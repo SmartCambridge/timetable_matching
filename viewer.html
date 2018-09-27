@@ -140,7 +140,7 @@
         function trip_as_html(trip) {
 
             var result = [];
-            result.push('<table>');
+            result.push('<p><table>');
             result.push(`<tr><th align="right">Time</th><td>${trip.OriginAimedDepartureTime}</td></tr>`);
             result.push(`<tr><th align="right">From</th><td>${trip.OriginName} (${trip.OriginRef})</td></tr>`);
             result.push(`<tr><th align="right">To</th><td>${trip.DestinationName} (${trip.DestinationRef})</td></tr>`);
@@ -148,7 +148,7 @@
             result.push(`<tr><th align="right">Operator</th><td>${trip.OperatorRef}</td></tr>`);
             result.push(`<tr><th align="right">Direction</th><td>${trip.DirectionRef}</td></tr>`);
             result.push(`<tr><th align="right">Vehicle</th><td>${trip.VehicleRef}</td></tr>`);
-            result.push('</table>');
+            result.push('</table></p>');
 
             return result.join(" ");
         }
@@ -156,11 +156,11 @@
         function position_as_html(position) {
 
             var result = [];
-            result.push('<table>');
+            result.push('<p><table>');
             result.push(`<tr><th align="right">Time</th><td>${position.RecordedAtTime}</td></tr>`);
             result.push(`<tr><th align="right">Bearing</th><td>${position.Bearing}</td></tr>`);
             result.push(`<tr><th align="right">Delay</th><td>${position.Delay}</td></tr>`);
-            result.push('</table>');
+            result.push('</table></p>');
 
             return result.join(" ");
         }
@@ -172,14 +172,14 @@
             var from = stops.stops[journey.stops[0].StopPointRef];
             var to = stops.stops[journey.stops[journey.stops.length -1].StopPointRef]
 
-            result.push('<table>');
+            result.push('<p><table>');
             result.push(`<tr><th align="right">Time</th><td>${journey.DepartureTime}</td></tr>`);
             result.push(`<tr><th align="right">From</th><td>${from.indicator} ${from.common_name}, ${from.locality_name} (${from.atco_code})</td></tr>`);
             result.push(`<tr><th align="right">To</th><td>${to.indicator} ${to.common_name}, ${to.locality_name} (${to.atco_code})</td></tr>`);
             result.push(`<tr><th align="right">Line</th><td>${journey.Service.LineName}</td></tr>`);
             result.push(`<tr><th align="right">Operator</th><td>${journey.Service.OperatorCode}</td></tr>`);
             result.push(`<tr><th align="right">Direction</th><td>${journey.Direction}</td></tr>`);
-            result.push('</table>');
+            result.push('</table></p>');
 
             return result.join(" ");
         }
@@ -192,7 +192,7 @@
         function journey_stop_as_html(stop) {
             var full_stop = stops.stops[stop.StopPointRef];
             var result = [];
-            result.push('<table>');
+            result.push('<p><table>');
             result.push(`<tr><th align="right">Time</th><td>${stop.time}</td></tr>`);
             result.push(`<tr><th align="right">Activity</th><td>${stop.Activity}</td></tr>`);
             result.push(`<tr><th align="right">Order</th><td>${stop.Order}</td></tr>`);
@@ -202,7 +202,7 @@
             result.push(`<tr><th align="right">Common name</th><td>${full_stop.common_name}</td></tr>`);
             result.push(`<tr><th align="right">Indicator</th><td>${full_stop.indicator}</td></tr>`);
             result.push(`<tr><th align="right">Locality name</th><td>${full_stop.locality_name}</td></tr>`);
-            result.push('</table>');
+            result.push('</table></p>');
 
             return result.join(" ");
         }
@@ -288,16 +288,22 @@
             add_heading(trow, 'Time');
             add_heading(trow, 'From');
             add_heading(trow, 'To');
-            add_heading(trow, 'Trip-Line');
-            add_heading(trow, 'Trip-Vehicle');
-            add_heading(trow, 'Trip-Depart');
-            add_heading(trow, 'Trip-Arrive');
+
+            add_heading(trow, 'Journey: Line');
+            add_heading(trow, 'Journey: Depart');
+            add_heading(trow, 'Journey: Arrive');
             add_heading(trow, '');
+
             add_heading(trow, '');
+
             add_heading(trow, '');
-            add_heading(trow, 'Journey-Line');
-            add_heading(trow, 'Journey-Depart');
-            add_heading(trow, 'Journey-Arrive');
+            add_heading(trow, 'Trip: Line');
+            add_heading(trow, 'Trip: Vehicle');
+            add_heading(trow, 'Trip: Depart');
+            add_heading(trow, 'Trip: Arrive');
+
+            add_heading(trow, 'Delay: Departure');
+            add_heading(trow, 'Delay: Arrival');
 
             var thead = document.createElement('thead');
             thead.appendChild(trow);
@@ -319,10 +325,48 @@
                 timestamp = moment(row.time)
                 add_data(trow, timestamp.format("YYYY-MM-DD"));
                 add_data(trow, timestamp.format("HH:mm"));
-                add_data(trow, row.origin);
-                add_data(trow, row.destination);
+                add_data(trow, row.origin_desc);
+                add_data(trow, row.destination_desc);
+
+                if (row.journey) {
+                    add_data(trow, row.journey.Service.LineName);
+                    add_data(trow, moment(row.journey.stops[0].time).format("HH:mm"));
+                    add_data(trow, moment(row.journey.stops[row.journey.stops.length - 1].time).format("HH:mm"));
+                    var a = document.createElement('a');
+                    a.setAttribute('href', '#');
+                    a.onclick = function(c) {
+                        return function() {
+                            display_journey(c);
+                            return false;
+                        };
+                    }(counter);
+                    a.appendChild(document.createTextNode('Show'));
+                    cell = document.createElement('td');
+                    cell.appendChild(a);
+                    trow.appendChild(cell);
+                }
+                else {
+                    add_data(trow, '');
+                    add_data(trow, '');
+                    add_data(trow, '');
+                    add_data(trow, '');
+                }
+
+                add_data(trow, row.separator);
 
                 if (row.trip) {
+                    var a = document.createElement('a');
+                    a.setAttribute('href', '#');
+                    a.onclick = function(c) {
+                        return function() {
+                            display_trip(c);
+                            return false;
+                        };
+                    }(counter);
+                    a.appendChild(document.createTextNode('Show'));
+                    cell = document.createElement('td');
+                    cell.appendChild(a);
+                    trow.appendChild(cell);
                     add_data(trow, row.trip.LineRef);
                     add_data(trow, row.trip.VehicleRef);
                     if (row.trip.departure_position !== null) {
@@ -337,18 +381,6 @@
                     else {
                         add_data(trow, '');
                     }
-                    var a = document.createElement('a');
-                    a.setAttribute('href', '#');
-                    a.onclick = function(c) {
-                        return function() {
-                            display_trip(c);
-                            return false;
-                        };
-                    }(counter);
-                    a.appendChild(document.createTextNode('Show'));
-                    cell = document.createElement('td');
-                    cell.appendChild(a);
-                    trow.appendChild(cell);
                 }
                 else {
                     add_data(trow, '');
@@ -357,30 +389,9 @@
                     add_data(trow, '');
                     add_data(trow, '');
                 }
-                add_data(trow, row.separator);
-                if (row.journey) {
-                    var a = document.createElement('a');
-                    a.setAttribute('href', '#');
-                    a.onclick = function(c) {
-                        return function() {
-                            display_journey(c);
-                            return false;
-                        };
-                    }(counter);
-                    a.appendChild(document.createTextNode('Show'));
-                    cell = document.createElement('td');
-                    cell.appendChild(a);
-                    trow.appendChild(cell);
-                    add_data(trow, row.journey.Service.LineName);
-                    add_data(trow, moment(row.journey.stops[0].time).format("HH:mm"));
-                    add_data(trow, moment(row.journey.stops[row.journey.stops.length - 1].time).format("HH:mm"));
-                }
-                else {
-                    add_data(trow, '');
-                    add_data(trow, '');
-                    add_data(trow, '');
-                    add_data(trow, '');
-                }
+
+                add_data(trow, row.departure_delay);
+                add_data(trow, row.arrival_delay);
 
                 tbody.appendChild(trow);
 

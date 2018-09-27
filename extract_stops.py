@@ -33,7 +33,7 @@ def load_merged(day):
     return merged
 
 
-def lookup_stops(merged_data):
+def lookup_stops(client, schema, matches, interesting_stops):
     '''
     Lookup the NapTAN data for every stop mentioned in the merged data
     '''
@@ -42,9 +42,7 @@ def lookup_stops(merged_data):
 
     stop_ids = set()
 
-    #logger.info(repr(merged_data)[:500])
-
-    for match in merged_data['merged']:
+    for match in matches:
 
         for trip in match['trips']:
             stop_ids.add(trip['OriginRef'])
@@ -55,13 +53,6 @@ def lookup_stops(merged_data):
                 stop_ids.add(stop['StopPointRef'])
 
     logger.info('Found %s stops in merged data', len(stop_ids))
-
-    # Setup a coreapi client
-    client = get_client()
-    schema = client.get(API_SCHEMA)
-
-    # Pre-load the list of all the stops in the bounding box
-    interesting_stops = get_stops(client, schema, BOUNDING_BOX)
 
     other_stops = {}
     results = {}
@@ -102,11 +93,18 @@ def main():
         logger.error('Failed to parse date')
         sys.exit()
 
-    merged_data = load_merged(day)
+    # Setup a coreapi client
+    client = get_client()
+    schema = client.get(API_SCHEMA)
 
-    stops = lookup_stops(merged_data)
+    # Get the list of all the stops we are interested in
+    interesting_stops = get_stops(client, schema, BOUNDING_BOX)
 
-    emit_stops(day, merged_data['bounding_box'], stops)
+    matched_data = load_merged(day)
+
+    stops = lookup_stops(client, schema, matched_data['merged'], interesting_stops)
+
+    emit_stops(day, matched_data['bounding_box'], stops)
 
     logger.info('Stop')
 

@@ -65,11 +65,15 @@ def describe_stop(stop_code, stops):
     result = []
     stop = stops[stop_code]
     if 'common_name' in stop:
-        if ('indicator' in stop and
-            stop['indicator'].lower() in ('opp', 'outside', 'o/s', 'adj', 'near',
-                                  'nr', 'behind', 'inside', 'by', 'in',
-                                  'at', 'on', 'before', 'just before',
-                                  'after', 'just after', 'corner of')):
+        if (
+            'indicator' in stop and
+            stop['indicator'].lower() in (
+                'opp', 'outside', 'o/s', 'adj', 'near',
+                'nr', 'behind', 'inside', 'by', 'in',
+                'at', 'on', 'before', 'just before',
+                'after', 'just after', 'corner of'
+            )
+        ):
             result.append(stop['indicator'] + ' ' + stop['common_name'])
         elif ('indicator' in stop):
             result.append(stop['common_name'] + ' ' + stop['indicator'])
@@ -215,7 +219,7 @@ def emit_json(day, bounding_box, rows):
     logger.info('Json output done')
 
 
-def emit_csv(day, rows, stops):
+def emit_csv(day, rows):
     '''
     Print row details in CSV to 'rows-<YYYY>-<mm>-<dd>.csv'
     '''
@@ -287,13 +291,6 @@ def emit_csv(day, rows, stops):
                     arrival.strftime("%H:%M:%S") if arrival else '',
                 )
 
-            departure_delay = None
-            if departure is not None and first is not None:
-                departure_delay = (departure - first)
-            arrival_delay = None
-            if arrival is not None and last is not None:
-                arrival_delay = (arrival - last)
-
             time = isodate.parse_datetime(row['time'])
 
             r = (
@@ -348,7 +345,7 @@ def main():
     rows = expand(day, merged_data['merged'], stops_data['stops'])
 
     emit_json(day, merged_data['bounding_box'], rows)
-    emit_csv(day, rows, stops_data['stops'])
+    emit_csv(day, rows)
 
     logger.info('Stop')
 

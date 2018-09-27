@@ -43,7 +43,20 @@ def load_journeys(day):
     return journeys
 
 
-def do_merge(trip_data, journey_data):
+def load_stops(day):
+
+    filename = 'stops-{:%Y-%m-%d}.json'.format(day)
+    logger.info('Reading %s', filename)
+
+    with open(filename, 'r', newline='') as jsonfile:
+        stops = json.load(jsonfile)
+
+    logger.info('Done')
+
+    return stops
+
+
+def do_merge(trips, journeys):
     '''
     Merge trips and journeys into one list, matching those with
     identical departure time, origin and destination
@@ -53,7 +66,7 @@ def do_merge(trip_data, journey_data):
     # and create a sorted list of keys
     trip_index = collections.defaultdict(list)
     trip_list = []
-    for trip in trip_data['trips']:
+    for trip in trips:
         key = (
             trip['OriginAimedDepartureTime'],
             trip['OriginRef'],
@@ -61,12 +74,12 @@ def do_merge(trip_data, journey_data):
         )
         trip_index[key].append(trip)
     trip_list = sorted(trip_index.keys())
-    logger.info('Grouped %s trips into %s groups', len(trip_data['trips']), len(trip_list))
+    logger.info('Grouped %s trips into %s groups', len(trips), len(trip_list))
 
     # Dito for journeys, grouped by DepartureTime and first and last stop
     journey_index = collections.defaultdict(list)
     journey_list = []
-    for journey in journey_data['journeys']:
+    for journey in journeys:
         key = (
             journey['DepartureTime'],
             journey['stops'][0]['StopPointRef'],
@@ -74,7 +87,7 @@ def do_merge(trip_data, journey_data):
         )
         journey_index[key].append(journey)
     journey_list = sorted(journey_index.keys())
-    logger.info('Grouped %s journeys into %s groups', len(journey_data['journeys']), len(journey_list))
+    logger.info('Grouped %s journeys into %s groups', len(journeys), len(journey_list))
 
     # Merge trips and journeys into one list that has one row per distinct
     # departure tile/origin/destination and whose first column contains a
@@ -169,6 +182,7 @@ def main():
 
     trip_data = load_trips(day)
     journey_data = load_journeys(day)
+    stops_data = load_stops(day)
 
     if trip_data['day'] != journey_data['day']:
         logger.error('Date in trips (%s) doesn\'t match that in journeys (%s)',
@@ -180,7 +194,17 @@ def main():
                      trip_data['bounding_box'], journey_data['bounding_box'])
         sys.exit()
 
-    merged = do_merge(trip_data, journey_data)
+    if trip_data['day'] != stops_data['day']:
+        logger.error('Date in trips (%s) doesn\'t match that in stops (%s)',
+                     trip_data['day'], stops_data['day'])
+        sys.exit()
+
+    if trip_data['bounding_box'] != stops_data['bounding_box']:
+        logger.error('Bounding box in trips (%s) doesn\'t match that in stops (%s)',
+                     trip_data['bounding_box'], _data['bounding_box'])
+        sys.exit()
+
+    merged = do_merge(trip_data['trips'], journey_data['journeys'])
 
     clasify_matches(merged)
 
