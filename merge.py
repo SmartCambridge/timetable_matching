@@ -127,11 +127,11 @@ def clasify_matches(merged):
         trips = merge['trips']
         journeys = merge['journeys']
         # Derive the type string
-        type = ((str(len(trips)) if len(trips) <= 1 else '*') +
+        type = ((str(len(journeys)) if len(journeys) <= 1 else '*') +
                 '-' +
-                (str(len(journeys)) if len(journeys) <= 1 else '*'))
+                (str(len(trips)) if len(trips) <= 1 else '*'))
         merge['type'] = type
-        logger.debug('tlen %s, jlen %s, type %s', len(trips), len(journeys), type)
+        logger.debug('jlen %s, tlen %s, type %s', len(journeys), len(trips), type)
 
     logger.info('Classification done')
 

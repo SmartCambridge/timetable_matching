@@ -52,7 +52,6 @@ def expand(day, results):
     for result in results:
 
         # Get the key, type, and *copies* of the trip row(s) and the journey row(s)
-        logger.info(repr(result))
         key = result['key']
         type = result['type']
         trips = result['trips'][:]
@@ -75,9 +74,9 @@ def expand(day, results):
                 'time': key[0],
                 'origin': key[1],
                 'destination': key[2],
-                'trip': trips.pop(0) if trips else None,
-                'separator': seperator[row_ctr],
                 'journey': journeys.pop(0) if journeys else None,
+                'separator': seperator[row_ctr],
+                'trip': trips.pop(0) if trips else None,
             }
             rows.append(row)
             row_ctr += 1
@@ -120,28 +119,43 @@ def emit_csv(day, rows):
 
         output.writerow((
             'Type',
-            'Departure day',
-            'Departure time',
+            'Day',
+            'Time',
             'From',
             'To',
+            'Journey-Line',
+            'Journey-Operator',
+            'Journey-Direction',
+            'Journey-Departure',
+            'Journey-Arrival',
+            ' ',
             'Trip-Line',
             'Trip-Operator',
             'Trip-Direction',
             'Trip-Vehicle',
             'Trip-Departure',
             'Trip-Arrival',
-            '',
-            'Journey-Line',
-            'Journey-Operator',
-            'Journey-Direction',
-            'Journey-Departure',
-            'Journey-Arrival',
-            'Departure-Delay',
-            'Arrival-Delay'
+            'Delay-Departure',
+            'Delay-Arrival',
         ))
 
         # For each result row
         for row in rows:
+
+            journey = row['journey']
+            first = last = None
+            if journey is None:
+                journey_fields = ('', '', '', '', '')
+            else:
+                first = isodate.parse_datetime(journey['stops'][0]['time'])
+                last = isodate.parse_datetime(journey['stops'][-1]['time'])
+                journey_fields = (
+                    journey['Service']['LineName'],
+                    journey['Service']['OperatorCode'],
+                    journey['Direction'],
+                    first.strftime("%H:%M"),
+                    last.strftime("%H:%M")
+                )
 
             trip = row['trip']
             departure = arrival = None
@@ -163,21 +177,6 @@ def emit_csv(day, rows):
                     arrival.strftime("%H:%M:%S") if arrival else '',
                 )
 
-            journey = row['journey']
-            first = last = None
-            if journey is None:
-                journey_fields = ('', '', '', '', '')
-            else:
-                first = isodate.parse_datetime(journey['stops'][0]['time'])
-                last = isodate.parse_datetime(journey['stops'][-1]['time'])
-                journey_fields = (
-                    journey['Service']['LineName'],
-                    journey['Service']['OperatorCode'],
-                    journey['Direction'],
-                    first.strftime("%H:%M"),
-                    last.strftime("%H:%M")
-                )
-
             departure_delay = ''
             if departure is not None and first is not None:
                 departure_delay = (departure - first).total_seconds() / 60
@@ -195,9 +194,9 @@ def emit_csv(day, rows):
                     row['origin'],
                     row['destination'],
                 ) +
-                trip_fields +
-                (row['separator'],) +
                 journey_fields +
+                (row['separator'],) +
+                trip_fields +
                 (departure_delay, arrival_delay)
             )
 
