@@ -51,9 +51,9 @@ seps = {
     '1-0': (' ', ' ', '\u21a4'),
     '*-*': ('\u2533', '\u2503', '\u253b'),
     '0-*': ('\u250f', '\u2503', '\u2517'),
-    '1-*': ('\u2533', '\u2503', '\u2517'),
+    '1-*': ('\u250f', '\u2503', '\u2517'),
     '*-0': ('\u2513', '\u2503', '\u251b'),
-    '*-1': ('\u2533', '\u2503', '\u251b'),
+    '*-1': ('\u2513', '\u2503', '\u251b'),
 }
 
 
@@ -66,7 +66,7 @@ def describe_stop(stop_code, stops):
     stop = stops[stop_code]
     if 'common_name' in stop:
         if ('indicator' in stop and
-            stop['indicator'] in ('opp', 'outside', 'o/s', 'adj', 'near',
+            stop['indicator'].lower() in ('opp', 'outside', 'o/s', 'adj', 'near',
                                   'nr', 'behind', 'inside', 'by', 'in',
                                   'at', 'on', 'before', 'just before',
                                   'after', 'just after', 'corner of')):
@@ -89,14 +89,14 @@ def expand(day, merged, stops):
     # For each result row
     for result in merged:
 
-        # Get the key, type, and *copies* of the trip row(s) and the journey row(s)
+        # Get the key, type,  trip row(s) and the journey row(s)
         key = result['key']
         type = result['type']
-        trips = result['trips'][:]
-        journeys = result['journeys'][:]
+        trips = result['trips']
+        journeys = result['journeys']
 
         # Pre-populate a list of separators
-        n_rows = max(len(trips), len(journeys))
+        n_rows = max(1, len(trips)) * max(1, len(journeys))
         if type in seps:
             seperator = [seps[type][1] for _ in range(n_rows)]
             seperator[0] = seps[type][0]
@@ -104,26 +104,96 @@ def expand(day, merged, stops):
         else:
             seperator = [' ' for _ in range(n_rows)]
 
-        row_ctr = 0
-        # Process matching trips/journeys
-        while trips or journeys:
-            row = {
-                'type': type,
-                'time': key[0],
-                'origin': key[1],
-                'origin_desc': describe_stop(key[1], stops),
-                'destination': key[2],
-                'destination_desc': describe_stop(key[2], stops),
-                'journey': journeys.pop(0) if journeys else None,
-                'separator': seperator[row_ctr],
-                'trip': trips.pop(0) if trips else None,
-            }
-            rows.append(row)
-            row_ctr += 1
+        if len(journeys) == 0:
+            row_ctr = 0
+            for trip in trips:
+                row = {
+                    'type': type,
+                    'time': key[0],
+                    'origin': key[1],
+                    'origin_desc': describe_stop(key[1], stops),
+                    'destination': key[2],
+                    'destination_desc': describe_stop(key[2], stops),
+                    'journey': None,
+                    'separator': seperator[row_ctr],
+                    'trip': trip,
+                    'departure_delay': None,
+                    'arrival_delay': None
+                }
+                rows.append(row)
+                row_ctr += 1
+        elif len(trips) == 0:
+            row_ctr = 0
+            for journey in journeys:
+                row = {
+                    'type': type,
+                    'time': key[0],
+                    'origin': key[1],
+                    'origin_desc': describe_stop(key[1], stops),
+                    'destination': key[2],
+                    'destination_desc': describe_stop(key[2], stops),
+                    'journey': journey,
+                    'separator': seperator[row_ctr],
+                    'trip': None,
+                    'departure_delay': None,
+                    'arrival_delay': None
+                }
+                rows.append(row)
+                row_ctr += 1
+        else:
+            row_ctr = 0
+            for journey in journeys:
+                first_stop_time = isodate.parse_datetime(journey['stops'][0]['time'])
+                last_stop_time = isodate.parse_datetime(journey['stops'][-1]['time'])
+                for trip in trips:
+
+                    departure_position = trip['departure_position']
+                    if departure_position is not None:
+                        departure_time = isodate.parse_datetime(trip['positions'][departure_position]['RecordedAtTime'])
+                        departure_delay = departure_time - first_stop_time
+                    else:
+                        departure_delay = None
+
+                    arrival_position = trip['arrival_position']
+                    if arrival_position is not None:
+                        arrival_time = isodate.parse_datetime(trip['positions'][arrival_position]['RecordedAtTime'])
+                        arrival_delay = arrival_time - last_stop_time
+                    else:
+                        arrival_delay = None
+
+                    row = {
+                        'type': type,
+                        'time': key[0],
+                        'origin': key[1],
+                        'origin_desc': describe_stop(key[1], stops),
+                        'destination': key[2],
+                        'destination_desc': describe_stop(key[2], stops),
+                        'journey': journey,
+                        'separator': seperator[row_ctr],
+                        'trip': trip,
+                        'departure_delay': departure_delay,
+                        'arrival_delay': arrival_delay
+                    }
+                    rows.append(row)
+                    row_ctr += 1
 
     logger.info('Expanded into %s rows', len(rows))
 
     return rows
+
+
+def json_serializer(obj):
+    if isinstance(obj, datetime.timedelta):
+        return format_timedelta(obj)
+    else:
+        raise TypeError("Object of type %s is not JSON serializable" % type(obj))
+
+
+def format_timedelta(delta):
+    if delta is None:
+        return ''
+    sign = '-' if delta.total_seconds() < 0 else ''
+    return sign + isodate.strftime(delta, '%P')
 
 
 def emit_json(day, bounding_box, rows):
@@ -140,7 +210,7 @@ def emit_json(day, bounding_box, rows):
             'bounding_box': bounding_box,
             'rows': rows,
         }
-        json.dump(output, jsonfile, indent=4, sort_keys=True)
+        json.dump(output, jsonfile, indent=4, sort_keys=True, default=json_serializer)
 
     logger.info('Json output done')
 
@@ -227,30 +297,27 @@ def emit_csv(day, rows, stops):
             time = isodate.parse_datetime(row['time'])
 
             r = (
-                (
-                    row['type'],
-                    time.strftime("%Y-%m-%d"),
-                    time.strftime("%H:%M"),
-                    row['origin_desc'],
-                    row['destination_desc'],
-                ) +
-                journey_fields +
-                (row['separator'],) +
-                trip_fields +
-                (format_timedelta(departure_delay),
-                 format_timedelta(arrival_delay))
+                    (
+                        row['type'],
+                        time.strftime("%Y-%m-%d"),
+                        time.strftime("%H:%M"),
+                        row['origin_desc'],
+                        row['destination_desc'],
+                    ) +
+                    journey_fields +
+                    (
+                        row['separator'],
+                    ) +
+                    trip_fields +
+                    (
+                        format_timedelta(row['departure_delay']),
+                        format_timedelta(row['arrival_delay'])
+                    )
             )
 
             output.writerow(r)
 
     logger.info('CSV output done')
-
-
-def format_timedelta(delta):
-    if delta is None:
-        return ''
-    sign = '-' if delta.total_seconds() < 0 else ''
-    return sign + isodate.strftime(delta, '%P')
 
 
 def main():
