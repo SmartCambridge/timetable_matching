@@ -19,6 +19,19 @@ import isodate
 
 logger = logging.getLogger('__name__')
 
+# Unicode characters used to show relationship between journeys and trips
+# seps{ }[0] for the first row, seps{ }[2] for the last (or only)
+# seps{ }[1] otherwise
+seps = {
+    '0-1': (' ', ' ', '\u21a6'),
+    '1-0': (' ', ' ', '\u21a4'),
+    '*-*': ('\u2533', '\u2503', '\u253b'),
+    '0-*': ('\u250f', '\u2503', '\u2517'),
+    '1-*': ('\u250f', '\u2503', '\u2517'),
+    '*-0': ('\u2513', '\u2503', '\u251b'),
+    '*-1': ('\u2513', '\u2503', '\u251b'),
+}
+
 
 def load_merged(day):
 
@@ -46,18 +59,10 @@ def load_stops(day):
     return stops
 
 
-seps = {
-    '0-1': (' ', ' ', '\u21a6'),
-    '1-0': (' ', ' ', '\u21a4'),
-    '*-*': ('\u2533', '\u2503', '\u253b'),
-    '0-*': ('\u250f', '\u2503', '\u2517'),
-    '1-*': ('\u250f', '\u2503', '\u2517'),
-    '*-0': ('\u2513', '\u2503', '\u251b'),
-    '*-1': ('\u2513', '\u2503', '\u251b'),
-}
-
-
 def describe_stop(stop_code, stops):
+    '''
+    Expand ATCO Code to human-redable stop description
+    '''
 
     if stop_code not in stops:
         return stop_code
@@ -87,6 +92,11 @@ def describe_stop(stop_code, stops):
 
 
 def expand(day, merged, stops):
+    '''
+    Expand merged representation of the relationship into an array of
+    rows (in date/time order). Add departure & arrival delay for all
+    journey -> trip matches.
+    '''
 
     rows = []
 
@@ -108,6 +118,7 @@ def expand(day, merged, stops):
         else:
             seperator = [' ' for _ in range(n_rows)]
 
+        # Trips with no journeys
         if len(journeys) == 0:
             row_ctr = 0
             for trip in trips:
@@ -126,6 +137,7 @@ def expand(day, merged, stops):
                 }
                 rows.append(row)
                 row_ctr += 1
+        # Journeys with no trips
         elif len(trips) == 0:
             row_ctr = 0
             for journey in journeys:
@@ -144,6 +156,7 @@ def expand(day, merged, stops):
                 }
                 rows.append(row)
                 row_ctr += 1
+        # Everything else
         else:
             row_ctr = 0
             for journey in journeys:
@@ -187,17 +200,16 @@ def expand(day, merged, stops):
 
 
 def json_serializer(obj):
+    '''
+    JSON searalisation support for datetime.timedelta
+    '''
     if isinstance(obj, datetime.timedelta):
-        return format_timedelta(obj)
+        if obj is None:
+            return ''
+        sign = '-' if obj.total_seconds() < 0 else ''
+        return sign + isodate.strftime(obj, '%P')
     else:
         raise TypeError("Object of type %s is not JSON serializable" % type(obj))
-
-
-def format_timedelta(delta):
-    if delta is None:
-        return ''
-    sign = '-' if delta.total_seconds() < 0 else ''
-    return sign + isodate.strftime(delta, '%P')
 
 
 def emit_json(day, bounding_box, rows):
@@ -219,9 +231,18 @@ def emit_json(day, bounding_box, rows):
     logger.info('Json output done')
 
 
+def format_timedelta(delta):
+    '''
+    Format a datetime in minuites and fractions thereof
+    '''
+    if delta is None:
+        return ''
+    return '{0:.2f}'.format(delta.total_seconds()/60)
+
+
 def emit_csv(day, rows):
     '''
-    Print row details in CSV to 'rows-<YYYY>-<mm>-<dd>.csv'
+    Emit partial row details in CSV to 'rows-<YYYY>-<mm>-<dd>.csv'
     '''
 
     csv_filename = 'rows-{:%Y-%m-%d}.csv'.format(day)
@@ -236,21 +257,23 @@ def emit_csv(day, rows):
             'Day',
             'Time',
             'From',
+            'From_Description',
             'To',
-            'Journey: Line',
-            'Journey: Operator',
-            'Journey: Direction',
-            'Journey: Departure',
-            'Journey: Arrival',
+            'To_Description',
+            'Journey_Line',
+            'Journey_Operator',
+            'Journey_Direction',
+            'Journey_Departure',
+            'Journey_Arrival',
             ' ',
-            'Trip: Line',
-            'Trip: Operator',
-            'Trip: Direction',
-            'Trip: Vehicle',
-            'Trip: Departure',
-            'Trip: Arrival',
-            'Delay: Departure',
-            'Delay: Arrival',
+            'Trip_Line',
+            'Trip_Operator',
+            'Trip_Direction',
+            'Trip_Vehicle',
+            'Trip_Departure',
+            'Trip_Arrival',
+            'Delay_Departure',
+            'Delay_Arrival',
         ))
 
         # For each result row
@@ -298,7 +321,9 @@ def emit_csv(day, rows):
                         row['type'],
                         time.strftime("%Y-%m-%d"),
                         time.strftime("%H:%M"),
+                        row['origin'],
                         row['origin_desc'],
+                        row['destination'],
                         row['destination_desc'],
                     ) +
                     journey_fields +
