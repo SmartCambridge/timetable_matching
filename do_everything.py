@@ -43,12 +43,15 @@ def main():
 
     # Get the list of all the stops we are interested in
     interesting_stops = get_stops(client, schema, BOUNDING_BOX)
+    assert len(interesting_stops) > 0, 'Failed to get any stops'
 
     # Retrieve timetable journeys
     journeys = get_journeys(day, interesting_stops, TNDS_REGIONS)
+    assert len(journeys) > 0, 'Failed to get any journeys'
 
     # Collect real-time journeys
     trips = get_trips(client, schema, day, interesting_stops)
+    assert len(trips) > 0, 'Failed to get any trips'
 
     # Derive trip departure and arrival timings
     derive_timings(trips)
