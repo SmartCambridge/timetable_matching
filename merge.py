@@ -76,8 +76,8 @@ def do_merge(trips, journeys):
     journey_list = sorted(journey_index.keys())
     logger.info('Grouped %s journeys into %s groups', len(journeys), len(journey_list))
 
-    # Merge trips and journeys into one list that has one row per distinct
-    # departure tile/origin/destination and whose first column contains a
+    # Merge trips and journeys into one list that has one element per distinct
+    # departure time/origin/destination and whose first column contains a
     # (possibly empty) list of trips and whose second column contains a
     # (possibly empty) list of journeys
     results = []
@@ -102,11 +102,13 @@ def do_merge(trips, journeys):
             })
     while trip_list:
         results.append({
+            'key': trip_list[0],
             'trips': trip_index[trip_list.pop(0)],
             'journeys': []
         })
     while journey_list:
         results.append({
+            'key': journey_list[0],
             'trips': [],
             'journeys': journey_index[journey_list.pop(0)]
         })
