@@ -63,7 +63,6 @@ def main():
     all_stops = lookup_stops(client, schema, merged, interesting_stops)
 
     # Expand merged data into one row per journey/trip match
-    logger.info(repr(merged))
     rows = expand(day, merged, all_stops)
 
     # And print the result
