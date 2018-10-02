@@ -19,7 +19,8 @@ from get_journeys import get_journeys
 from get_trips import get_trips, derive_timings
 from merge import do_merge, clasify_matches
 from extract_stops import lookup_stops, emit_stops
-from expand_merged import expand, emit_json, emit_csv
+from expand_merged import expand, emit_json
+from create_csv import emit_csv
 
 
 logger = logging.getLogger('__name__')
@@ -71,6 +72,8 @@ def main():
     # And print the result
     emit_stops(day, BOUNDING_BOX, all_stops)
     emit_json(day, BOUNDING_BOX, rows)
+
+    # and again, as CSV
     emit_csv(day, rows)
 
     logger.info('Stop')
