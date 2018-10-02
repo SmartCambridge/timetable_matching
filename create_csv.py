@@ -58,7 +58,8 @@ def emit_csv(day, rows):
             'To',
             'To_Description',
             'Journey_Line',
-            'Journey_Operator',
+            'Journey_Operator_Code',
+            'Journey_Operator_Name',
             'Journey_Direction',
             'Journey_Departure',
             'Journey_Arrival',
@@ -79,13 +80,14 @@ def emit_csv(day, rows):
             journey = row['journey']
             first = last = None
             if journey is None:
-                journey_fields = ('', '', '', '', '')
+                journey_fields = ('', '', '', '', '', '')
             else:
                 first = isodate.parse_datetime(journey['stops'][0]['time'])
                 last = isodate.parse_datetime(journey['stops'][-1]['time'])
                 journey_fields = (
                     journey['Service']['LineName'],
                     journey['Service']['OperatorCode'],
+                    journey['Service']['OperatorName'],
                     journey['Direction'],
                     first.strftime("%H:%M"),
                     last.strftime("%H:%M")

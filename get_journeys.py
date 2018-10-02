@@ -181,6 +181,7 @@ def process(filename, day, interesting_stops):
                 'Description': service.find('n:Description', NS).text,
                 'LineName': service.find('n:Lines/n:Line/n:LineName', NS).text,
                 'OperatorCode': operator.find('n:OperatorCode', NS).text,
+                'OperatorName': operator.find('n:OperatorNameOnLicence', NS).text,
             },
             'JourneyPatternId': journey_pattern_id,
             'Direction': journey_pattern.find('n:Direction', NS).text,
