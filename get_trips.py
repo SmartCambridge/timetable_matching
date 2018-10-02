@@ -51,6 +51,7 @@ import os
 import sys
 
 from haversine import haversine
+import isodate
 
 from util import (
     API_SCHEMA, BOUNDING_BOX, LOAD_PATH, get_client, get_stops,
@@ -141,13 +142,24 @@ def get_trips(client, schema, date, interesting_stops):
                         record['Longitude'],
                         record['Latitude'])
 
-    # Sort the position records by time
-    for trip in trips.values():
-        trip['positions'].sort(key=lambda pos: pos['RecordedAtTime'])
-
     logger.info("Found %s trips", len(trips))
 
-    return list(trips.values())
+    # Collect only trips that actually start today (at least some will have
+    # started yesterday), and sort their position records by time
+    result = []
+    skipped_trips = 0
+    for trip in trips.values():
+        departure_timestamp = isodate.parse_datetime(trip['OriginAimedDepartureTime'])
+        if date == departure_timestamp.date():
+            trip['positions'].sort(key=lambda pos: pos['RecordedAtTime'])
+            result.append(trip)
+        else:
+            skipped_trips += 1
+
+    logger.info("Skipped %s trips which started in the wrong day", skipped_trips)
+    logger.info("Found %s interesting trips", len(result))
+
+    return result
 
 
 def derive_timings(trips):
