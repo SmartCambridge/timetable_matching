@@ -8,6 +8,7 @@ import datetime
 import sys
 
 import pandas as pd
+import numpy as np
 
 
 def sumarise(day):
@@ -97,18 +98,36 @@ def sumarise(day):
          data[data['Delay_Departure'].notnull() & data['Delay_Arrival'].notnull()]['Type'].count()))
     print()
 
-    bin_limits = [-2880, -1440, -120, -60, -30, -20,  -10, -5, 0, 5, 10, 20, 30, 60, 120, 1440, 2880]
+    bin_limits = [-np.inf, -1440, -120, -60, -30, -20,  -10, -5, 0, 5, 10, 20, 30, 60, 120, 1440, np.inf]
+    labels = [
+        "More than a day early",
+        "More than 2 hours early",
+        "More than 1 hour early",
+        "More than 30 minutes early",
+        "More than 20 minutes early",
+        "More than 10 minutes early",
+        "More than 5 minutes early",
+        "Less than 5 minutes early",
+        "Less than 5 minutes late",
+        "More than 5 minutes late",
+        "More than 10 minutes late",
+        "More than 20 minutes late",
+        "More than 30 minutes late",
+        "More than 1 hour late",
+        "More than 2 hours late",
+        "More than a day late",
+    ]
 
-    print('Distribution of departure delays (minutes):')
-    bins = pd.cut(data['Delay_Departure'], bin_limits)
+    print('Distribution of departure delays:')
+    bins = pd.cut(data['Delay_Departure'], bin_limits, labels=labels)
     for key, value in (data.groupby(bins)['Delay_Departure'].agg('count')).iteritems():
-        print('    {0:5}: between {1} and {2}'.format(value, key.left, key.right))
+        print('    {0:5}: {1}'.format(value, key))
     print()
 
-    print('Distribution of arrival delays (minutes):')
-    bins = pd.cut(data['Delay_Arrival'], bin_limits)
+    print('Distribution of arrival delays:')
+    bins = pd.cut(data['Delay_Arrival'], bin_limits, labels=labels)
     for key, value in (data.groupby(bins)['Delay_Arrival'].agg('count')).iteritems():
-        print('    {0:5}: between {1} and {2}'.format(value, key.left, key.right))
+        print('    {0:5}: {1}'.format(value, key))
 
 
 def main():
