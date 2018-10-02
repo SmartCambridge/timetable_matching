@@ -124,6 +124,15 @@
             markerColor: 'orange'
         });
 
+        function as_minutes(seconds) {
+            if (seconds === null || seconds === '') {
+                return ''
+            }
+            else {
+                return (seconds/60).toFixed(2)
+            }
+        }
+
 
         function add_heading(row, text) {
             cell = document.createElement('th');
@@ -210,72 +219,105 @@
         function init() {
 
             map = L.map('map');
-            trip_layer = L.layerGroup();
-            journey_layer = L.layerGroup();
 
-            function display_trip(row_num) {
+            var journey_layers = {}
+            var trip_layers = {}
 
-                var trip = data.rows[row_num].trip;
-                var polyline = L.polyline([], trip_line_opts);
-                polyline.addTo(trip_layer);
-                polyline.bindPopup(trip_as_html(trip))
-                trip.positions.forEach(function(position, index, positions) {
-                    polyline.addLatLng([position.Latitude, position.Longitude]);
-                    if (index == trip.departure_position) {
-                        L.marker([position.Latitude, position.Longitude], {icon: trip_departure}).addTo(trip_layer)
-                    }
-                    else if (index == trip.arrival_position) {
-                        L.marker([position.Latitude, position.Longitude], {icon: trip_arrival}).addTo(trip_layer)
-                    }
-                    else if (index === 0) {
-                        L.marker([position.Latitude, position.Longitude], {icon: trip_first}).addTo(trip_layer)
-                    }
-                    else if (index === (positions.length -1)) {
-                        L.marker([position.Latitude, position.Longitude], {icon: trip_last}).addTo(trip_layer)
-                    }
-                    L.circleMarker([position.Latitude, position.Longitude], trip_marker_opts)
-                        .bindPopup(position_as_html(position)).addTo(trip_layer);
-                });
+            function display_trip(row_num, element) {
 
-                var origin = stops.stops[trip.OriginRef]
-                var origin_marker = L.circleMarker([origin.latitude, origin.longitude], trip_marker_opts)
-                    .bindPopup(stop_as_html(origin));
-                origin_marker.setStyle({color: "blue", radius: 10, fill: false, weight: 2 });
-                origin_marker.addTo(trip_layer);
+                if (trip_layers.hasOwnProperty(row_num)) {
+                    map.removeLayer(trip_layers[row_num])
+                    delete trip_layers[row_num]
+                    element.innerHTML = 'Show'
+                }
 
-                var destination = stops.stops[trip.DestinationRef]
-                var destination_marker = L.circleMarker([destination.latitude, destination.longitude], trip_marker_opts)
-                    .bindPopup(stop_as_html(destination));
-                destination_marker.setStyle({color: "blue", radius: 10, fill: false, weight: 2 });
-                destination_marker.addTo(trip_layer);
+                else {
 
-                map.fitBounds(polyline.getBounds().extend(origin_marker.getLatLng()).extend(destination_marker.getLatLng()));
+                    var layer = L.layerGroup();
+
+                    var trip = data.rows[row_num].trip;
+                    var polyline = L.polyline([], trip_line_opts);
+                    polyline.addTo(layer);
+                    polyline.bindPopup(trip_as_html(trip))
+                    trip.positions.forEach(function(position, index, positions) {
+                        polyline.addLatLng([position.Latitude, position.Longitude]);
+                        if (index == trip.departure_position) {
+                            L.marker([position.Latitude, position.Longitude], {icon: trip_departure}).addTo(layer)
+                        }
+                        else if (index == trip.arrival_position) {
+                            L.marker([position.Latitude, position.Longitude], {icon: trip_arrival}).addTo(layer)
+                        }
+                        else if (index === 0) {
+                            L.marker([position.Latitude, position.Longitude], {icon: trip_first}).addTo(layer)
+                        }
+                        else if (index === (positions.length -1)) {
+                            L.marker([position.Latitude, position.Longitude], {icon: trip_last}).addTo(layer)
+                        }
+                        L.circleMarker([position.Latitude, position.Longitude], trip_marker_opts)
+                            .bindPopup(position_as_html(position)).addTo(layer);
+                    });
+
+                    var origin = stops.stops[trip.OriginRef]
+                    var origin_marker = L.circleMarker([origin.latitude, origin.longitude], trip_marker_opts)
+                        .bindPopup(stop_as_html(origin));
+                    origin_marker.setStyle({color: "blue", radius: 10, fill: false, weight: 2 });
+                    origin_marker.addTo(layer);
+
+                    var destination = stops.stops[trip.DestinationRef]
+                    var destination_marker = L.circleMarker([destination.latitude, destination.longitude], trip_marker_opts)
+                        .bindPopup(stop_as_html(destination));
+                    destination_marker.setStyle({color: "blue", radius: 10, fill: false, weight: 2 });
+                    destination_marker.addTo(layer);
+
+                    trip_layers[row_num] = layer;
+                    map.addLayer(layer)
+
+                    element.innerHTML = 'Hide'
+
+                    map.fitBounds(polyline.getBounds().extend(origin_marker.getLatLng()).extend(destination_marker.getLatLng()));
+
+                }
 
             }
 
-            function display_journey(row_num) {
+            function display_journey(row_num, element) {
 
-                var journey = data.rows[row_num].journey;
-                var polyline = L.polyline([], journey_line_opts);
-                polyline.addTo(journey_layer);
-                polyline.bindPopup(journey_as_html(journey))
+                if (journey_layers.hasOwnProperty(row_num)) {
+                    map.removeLayer(journey_layers[row_num])
+                    delete journey_layers[row_num]
+                    element.innerHTML = 'Show'
+                }
 
-                journey.stops.forEach(function(stop, index, journey_stops) {
-                    var full_stop = stops.stops[stop.StopPointRef];
-                    polyline.addLatLng([full_stop.latitude, full_stop.longitude]);
-                    marker = L.circleMarker([full_stop.latitude, full_stop.longitude], journey_marker_opts)
-                        .bindPopup(journey_stop_as_html(stop));
-                    marker.addTo(journey_layer);
-                    if (index === 0) {
-                        L.marker([full_stop.latitude, full_stop.longitude], {icon: journey_departure}).addTo(journey_layer);
-                    }
-                    else if (index === (journey_stops.length -1)) {
-                        L.marker([full_stop.latitude, full_stop.longitude], {icon: journey_arrival}).addTo(journey_layer);
-                    }
-                    marker.addTo(journey_layer);
-                });
+                else {
+                    var layer = L.layerGroup();
+                    var journey = data.rows[row_num].journey;
+                    var polyline = L.polyline([], journey_line_opts);
+                    polyline.addTo(layer);
+                    polyline.bindPopup(journey_as_html(journey))
 
-                map.fitBounds(polyline.getBounds());
+                    journey.stops.forEach(function(stop, index, journey_stops) {
+                        var full_stop = stops.stops[stop.StopPointRef];
+                        polyline.addLatLng([full_stop.latitude, full_stop.longitude]);
+                        marker = L.circleMarker([full_stop.latitude, full_stop.longitude], journey_marker_opts)
+                            .bindPopup(journey_stop_as_html(stop));
+                        marker.addTo(layer);
+                        if (index === 0) {
+                            L.marker([full_stop.latitude, full_stop.longitude], {icon: journey_departure}).addTo(layer);
+                        }
+                        else if (index === (journey_stops.length -1)) {
+                            L.marker([full_stop.latitude, full_stop.longitude], {icon: journey_arrival}).addTo(layer);
+                        }
+                        marker.addTo(layer);
+                    });
+
+                    journey_layers[row_num] = layer;
+                    map.addLayer(layer)
+
+                    element.innerHTML = 'Hide'
+
+                    map.fitBounds(polyline.getBounds());
+
+                }
 
             }
 
@@ -302,8 +344,8 @@
             add_heading(trow, 'Trip: Depart');
             add_heading(trow, 'Trip: Arrive');
 
-            add_heading(trow, 'Delay: Departure');
-            add_heading(trow, 'Delay: Arrival');
+            add_heading(trow, 'Delay (min): Departure');
+            add_heading(trow, 'Delay (min): Arrival');
 
             var thead = document.createElement('thead');
             thead.appendChild(trow);
@@ -336,7 +378,7 @@
                     a.setAttribute('href', '#');
                     a.onclick = function(c) {
                         return function() {
-                            display_journey(c);
+                            display_journey(c, this);
                             return false;
                         };
                     }(counter);
@@ -359,7 +401,7 @@
                     a.setAttribute('href', '#');
                     a.onclick = function(c) {
                         return function() {
-                            display_trip(c);
+                            display_trip(c, this);
                             return false;
                         };
                     }(counter);
@@ -390,8 +432,8 @@
                     add_data(trow, '');
                 }
 
-                add_data(trow, row.departure_delay);
-                add_data(trow, row.arrival_delay);
+                add_data(trow, as_minutes(row.departure_delay));
+                add_data(trow, as_minutes(row.arrival_delay));
 
                 tbody.appendChild(trow);
 
@@ -419,6 +461,7 @@
                 rows_counter: true,
                 btn_reset: true,
                 status_bar: true,
+                sticky_headers: true
             }
 
             var tf = new TableFilter(table, tf_config);
@@ -429,13 +472,9 @@
                maxZoom: 19
             });
             map.addLayer(osm);
-            map.addLayer(trip_layer);
-            map.addLayer(journey_layer);
             L.control.scale().addTo(map);
 
             L.easyButton('fa-trash-alt', function(btn, map) {
-                trip_layer.clearLayers();
-                journey_layer.clearLayers();
                 map.fitBounds(area.getBounds());
             }).addTo(map);
 
