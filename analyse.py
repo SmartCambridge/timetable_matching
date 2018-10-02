@@ -5,13 +5,9 @@ Produce sumamry statistics about a day's bus journeys
 """
 
 import datetime
-import logging
 import sys
 
 import pandas as pd
-
-
-logger = logging.getLogger('__name__')
 
 
 def sumarise(day):
@@ -20,9 +16,15 @@ def sumarise(day):
 
     data = pd.read_csv(filename)
 
-    logger.info('There were %s matched rows', data['Type'].count())
-    logger.info('There were %s journeys', data['Journey_Line'].count())
-    logger.info('There were %s trips', data['Trip_Line'].count())
+    title = "Matching summary for {:%Y-%m-%d (%A)}".format(day)
+    print(title)
+    print("="*len(title))
+    print()
+
+    print('Total matched rows: {0}'.format(data['Type'].count()))
+    print('Journeys:           {0}'.format(data['Journey_Line'].count()))
+    print('Trips:              {0}'.format(data['Trip_Line'].count()))
+    print()
 
     type_desc = {
         '0-1': 'No journey, single trip',
@@ -36,43 +38,88 @@ def sumarise(day):
     }
 
     types = data['Type'].value_counts()
-    logger.info('Type breakdown:')
+    print('Type breakdown:')
     for key, value in types.iteritems():
-        logger.info('    %s: %s', type_desc[key], value)
-
-    logger.info('Trips with departure_time %s', data['Trip_Departure'].count())
-    logger.info('Trips with arival_time %s', data['Trip_Arrival'].count())
-
-    logger.info(
-        'Trips with departure_time and arrival_time %s',
-        data[data['Trip_Departure'].notnull() & data['Trip_Arrival'].notnull()]['Type'].count())
+        print('    {0:5}: {1}'.format(value, type_desc[key]))
+    print()
 
     missing_trips = data[data['Trip_Line'].isnull()].groupby('Journey_Line').size()
-    logger.info('Journeys with no trips, by line:')
+    trips = data.groupby('Journey_Line').size()
+
+    print('Journeys with no Trips, by Line:')
     for key, value in missing_trips.iteritems():
-        logger.info('    %s: %s', key, value)
+        print('    {0:5}: {1}'.format(value, key))
+    print()
+
+    trips = data.groupby('Journey_Line').size()
+    print('All Journeys, by Line:')
+    for key, value in trips.iteritems():
+        print('    {0:5}: {1}'.format(value, key))
+    print()
+
+    missing_trips = data[data['Trip_Line'].isnull()].groupby('Journey_Operator').size()
+    print('Journeys with no Trips, by Operator:')
+    for key, value in missing_trips.iteritems():
+        print('    {0:5}: {1}'.format(value, key))
+    print()
 
     missing_journeys = data[data['Journey_Line'].isnull()].groupby('Trip_Line').size()
-    logger.info('Trips with no journeys, by line:')
+    print('No journeys but one or more Trips, by Line:')
     for key, value in missing_journeys.iteritems():
-        logger.info('    %s: %s', key, value)
+        print('    {0:5}: {1}'.format(value, key))
+    print()
+
+    missing_journeys = data[data['Journey_Line'].isnull()].groupby('Trip_Operator').size()
+    print('No journeys but one or more Trips, by Operator:')
+    for key, value in missing_journeys.iteritems():
+        print('    {0:5}: {1}'.format(value, key))
+    print()
+
+    print(
+        'Trips with departure_time:                       {0}'.format(
+         data['Trip_Departure'].count()))
+    print(
+        'Trips with arival_time:                          {0}'.format(
+         data['Trip_Arrival'].count()))
+    print(
+        'Trips with both departure_time and arrival_time: {0}'.format(
+         data[data['Trip_Departure'].notnull() & data['Trip_Arrival'].notnull()]['Type'].count()))
+    print()
+
+    print(
+        'Rows with departure delay:                        {0}'.format(
+         data['Delay_Departure'].count()))
+    print(
+        'Rows with ariveal delay                           {0}'.format(
+         data['Delay_Arrival'].count()))
+    print(
+        'Rows with both departure delay and arrival delay: {0}'.format(
+         data[data['Delay_Departure'].notnull() & data['Delay_Arrival'].notnull()]['Type'].count()))
+    print()
+
+    bin_limits = [-2880, -1440, -120, -60, -30, -20,  -10, -5, 0, 5, 10, 20, 30, 60, 120, 1440, 2880]
+
+    print('Distribution of departure delays (minutes):')
+    bins = pd.cut(data['Delay_Departure'], bin_limits)
+    for key, value in (data.groupby(bins)['Delay_Departure'].agg('count')).iteritems():
+        print('    {0:5}: between {1} and {2}'.format(value, key.left, key.right))
+    print()
+
+    print('Distribution of arrival delays (minutes):')
+    bins = pd.cut(data['Delay_Arrival'], bin_limits)
+    for key, value in (data.groupby(bins)['Delay_Arrival'].agg('count')).iteritems():
+        print('    {0:5}: between {1} and {2}'.format(value, key.left, key.right))
 
 
 def main():
 
-    logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
-
-    logger.info('Start')
-
     try:
         day = datetime.datetime.strptime(sys.argv[1], '%Y-%m-%d').date()
     except ValueError:
-        logger.error('Failed to parse date')
+        print('Failed to parse date', out=sys.stdout)
         sys.exit()
 
     sumarise(day)
-
-    logger.info('Stop')
 
 
 if __name__ == "__main__":
