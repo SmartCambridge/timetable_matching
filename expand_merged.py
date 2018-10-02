@@ -167,14 +167,14 @@ def expand(day, merged, stops):
                     departure_position = trip['departure_position']
                     if departure_position is not None:
                         departure_time = isodate.parse_datetime(trip['positions'][departure_position]['RecordedAtTime'])
-                        departure_delay = departure_time - first_stop_time
+                        departure_delay = int((departure_time - first_stop_time).total_seconds())
                     else:
                         departure_delay = None
 
                     arrival_position = trip['arrival_position']
                     if arrival_position is not None:
                         arrival_time = isodate.parse_datetime(trip['positions'][arrival_position]['RecordedAtTime'])
-                        arrival_delay = arrival_time - last_stop_time
+                        arrival_delay = int((arrival_time - last_stop_time).total_seconds())
                     else:
                         arrival_delay = None
 
@@ -199,19 +199,6 @@ def expand(day, merged, stops):
     return rows
 
 
-def json_serializer(obj):
-    '''
-    JSON searalisation support for datetime.timedelta
-    '''
-    if isinstance(obj, datetime.timedelta):
-        if obj is None:
-            return ''
-        sign = '-' if obj.total_seconds() < 0 else ''
-        return sign + isodate.strftime(obj, '%P')
-    else:
-        raise TypeError("Object of type %s is not JSON serializable" % type(obj))
-
-
 def emit_json(day, bounding_box, rows):
     '''
     Print row details in json to 'rows-<YYYY>-<mm>-<dd>.json'
@@ -226,18 +213,18 @@ def emit_json(day, bounding_box, rows):
             'bounding_box': bounding_box,
             'rows': rows,
         }
-        json.dump(output, jsonfile, indent=4, sort_keys=True, default=json_serializer)
+        json.dump(output, jsonfile, indent=4, sort_keys=True)
 
     logger.info('Json output done')
 
 
-def format_timedelta(delta):
+def format_minutes(seconds):
     '''
     Format a datetime in minuites and fractions thereof
     '''
-    if delta is None:
+    if seconds is None:
         return ''
-    return '{0:.2f}'.format(delta.total_seconds()/60)
+    return '{0:.2f}'.format(seconds/60)
 
 
 def emit_csv(day, rows):
@@ -332,8 +319,8 @@ def emit_csv(day, rows):
                     ) +
                     trip_fields +
                     (
-                        format_timedelta(row['departure_delay']),
-                        format_timedelta(row['arrival_delay'])
+                        format_minutes(row['departure_delay']),
+                        format_minutes(row['arrival_delay'])
                     )
             )
 
