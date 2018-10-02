@@ -103,7 +103,6 @@ def expand(day, merged, stops):
     for result in merged:
 
         # Get the key, type,  trip row(s) and the journey row(s)
-        key = result['key']
         type = result['type']
         trips = result['trips']
         journeys = result['journeys']
@@ -123,11 +122,11 @@ def expand(day, merged, stops):
             for trip in trips:
                 row = {
                     'type': type,
-                    'time': key[0],
-                    'origin': key[1],
-                    'origin_desc': describe_stop(key[1], stops),
-                    'destination': key[2],
-                    'destination_desc': describe_stop(key[2], stops),
+                    'time': trip['OriginAimedDepartureTime'],
+                    'origin': trip['OriginRef'],
+                    'origin_desc': describe_stop(trip['OriginRef'], stops),
+                    'destination': trip['DestinationRef'],
+                    'destination_desc': describe_stop(trip['DestinationRef'], stops),
                     'journey': None,
                     'separator': seperator[row_ctr],
                     'trip': trip,
@@ -142,11 +141,11 @@ def expand(day, merged, stops):
             for journey in journeys:
                 row = {
                     'type': type,
-                    'time': key[0],
-                    'origin': key[1],
-                    'origin_desc': describe_stop(key[1], stops),
-                    'destination': key[2],
-                    'destination_desc': describe_stop(key[2], stops),
+                    'time': journey['DepartureTime'],
+                    'origin': journey['stops'][0]['StopPointRef'],
+                    'origin_desc': describe_stop(journey['stops'][0]['StopPointRef'], stops),
+                    'destination': journey['stops'][-1]['StopPointRef'],
+                    'destination_desc': describe_stop(journey['stops'][-1]['StopPointRef'], stops),
                     'journey': journey,
                     'separator': seperator[row_ctr],
                     'trip': None,
@@ -179,11 +178,11 @@ def expand(day, merged, stops):
 
                     row = {
                         'type': type,
-                        'time': key[0],
-                        'origin': key[1],
-                        'origin_desc': describe_stop(key[1], stops),
-                        'destination': key[2],
-                        'destination_desc': describe_stop(key[2], stops),
+                        'time': journey['DepartureTime'],
+                        'origin': journey['stops'][0]['StopPointRef'],
+                        'origin_desc': describe_stop(journey['stops'][0]['StopPointRef'], stops),
+                        'destination': journey['stops'][-1]['StopPointRef'],
+                        'destination_desc': describe_stop(journey['stops'][-1]['StopPointRef'], stops),
                         'journey': journey,
                         'separator': seperator[row_ctr],
                         'trip': trip,

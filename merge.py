@@ -84,31 +84,26 @@ def do_merge(trips, journeys):
     while trip_list and journey_list:
         if trip_list[0] < journey_list[0]:
             results.append({
-                'key': trip_list[0],
                 'trips': trip_index[trip_list.pop(0)],
                 'journeys': []
             })
         elif trip_list[0] > journey_list[0]:
             results.append({
-                'key': journey_list[0],
                 'trips': [],
                 'journeys': journey_index[journey_list.pop(0)]
             })
         else:
             results.append({
-                'key': trip_list[0],
                 'trips': trip_index[trip_list.pop(0)],
                 'journeys': journey_index[journey_list.pop(0)]
             })
     while trip_list:
         results.append({
-            'key': trip_list[0],
             'trips': trip_index[trip_list.pop(0)],
             'journeys': []
         })
     while journey_list:
         results.append({
-            'key': journey_list[0],
             'trips': [],
             'journeys': journey_index[journey_list.pop(0)]
         })
