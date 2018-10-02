@@ -218,11 +218,11 @@ def derive_timings(trips):
             logger.debug('Final origin state %s; destination state %s', departure_state, arrival_state)
 
         # Try a bit harder if we still don't have an arrival_position - use
-        # the very last position if it's within threshold * 4
+        # the very last position if it's within threshold * 2
         if arrival_position is None:
             final_position = trip['positions'][-1]
             final = (float(final_position['Latitude']), float(final_position['Longitude']))
-            if (haversine(final, destination) * 1000) < (threshold * 4):
+            if (haversine(final, destination) * 1000) < (threshold * 2):
                 arrival_position = len(trip['positions']) - 1
                 logger.debug('Using final position for arrival')
 
