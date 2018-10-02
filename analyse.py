@@ -40,40 +40,73 @@ def sumarise(day):
 
     types = data['Type'].value_counts()
     print('Type breakdown:')
+    print()
     for key, value in types.iteritems():
         print('    {0:5}: {1}'.format(value, type_desc[key]))
     print()
 
-    missing_trips = data[data['Trip_Line'].isnull()].groupby('Journey_Line').size()
-    trips = data.groupby('Journey_Line').size()
-
     print('Journeys with no Trips, by Line:')
-    for key, value in missing_trips.iteritems():
-        print('    {0:5}: {1}'.format(value, key))
     print()
 
-    trips = data.groupby('Journey_Line').size()
-    print('All Journeys, by Line:')
-    for key, value in trips.iteritems():
-        print('    {0:5}: {1}'.format(value, key))
+    filtered = data[data['Trip_Line'].isnull()].groupby('Journey_Line').size()
+    filtered.name = 'Journeys_without_trips'
+    all = data.groupby('Journey_Line').size()
+    all.name = 'All_journeys'
+
+    join = pd.concat([filtered, all], axis=1, join='inner')
+
+    print('    Count  Total:  Line')
+    print('    -----  -----:  ----')
+    for index, row in join.iterrows():
+        print('    {0:5}  {1:5}:  {2}'.format(row['Journeys_without_trips'], row['All_journeys'], index))
     print()
 
-    missing_trips = data[data['Trip_Line'].isnull()].groupby('Journey_Operator').size()
     print('Journeys with no Trips, by Operator:')
-    for key, value in missing_trips.iteritems():
-        print('    {0:5}: {1}'.format(value, key))
     print()
 
-    missing_journeys = data[data['Journey_Line'].isnull()].groupby('Trip_Line').size()
+    filtered = data[data['Trip_Line'].isnull()].groupby('Journey_Operator_Name').size()
+    filtered.name = 'Journeys_without_trips'
+    all = data.groupby('Journey_Operator_Name').size()
+    all.name = 'All_journeys'
+
+    join = pd.concat([filtered, all], axis=1, join='inner')
+
+    print('    Count  Total:  Operator')
+    print('    -----  -----:  --------')
+    for index, row in join.iterrows():
+        print('    {0:5}  {1:5}:  {2}'.format(row['Journeys_without_trips'], row['All_journeys'], index))
+    print()
+
     print('No journeys but one or more Trips, by Line:')
-    for key, value in missing_journeys.iteritems():
-        print('    {0:5}: {1}'.format(value, key))
     print()
 
-    missing_journeys = data[data['Journey_Line'].isnull()].groupby('Trip_Operator').size()
+    filtered = data[data['Journey_Line'].isnull()].groupby('Trip_Line').size()
+    filtered.name = 'Trips_without_journeys'
+    all = data.groupby('Trip_Line').size()
+    all.name = 'All_trips'
+
+    join = pd.concat([filtered, all], axis=1, join='inner')
+
+    print('    Count  Total:  Line')
+    print('    -----  -----:  ----')
+    for index, row in join.iterrows():
+        print('    {0:5}  {1:5}:  {2}'.format(row['Trips_without_journeys'], row['All_trips'], index))
+    print()
+
     print('No journeys but one or more Trips, by Operator:')
-    for key, value in missing_journeys.iteritems():
-        print('    {0:5}: {1}'.format(value, key))
+    print()
+
+    filtered = data[data['Journey_Line'].isnull()].groupby('Trip_Operator').size()
+    filtered.name = 'Trips_without_journeys'
+    all = data.groupby('Trip_Operator').size()
+    all.name = 'All_trips'
+
+    join = pd.concat([filtered, all], axis=1, join='inner')
+
+    print('    Count  Total:  Operator')
+    print('    -----  -----:  --------')
+    for index, row in join.iterrows():
+        print('    {0:5}  {1:5}:  {2}'.format(row['Trips_without_journeys'], row['All_trips'], index))
     print()
 
     print(
@@ -98,9 +131,8 @@ def sumarise(day):
          data[data['Delay_Departure'].notnull() & data['Delay_Arrival'].notnull()]['Type'].count()))
     print()
 
-    bin_limits = [-np.inf, -1440, -120, -60, -30, -20,  -10, -5, 0, 5, 10, 20, 30, 60, 120, 1440, np.inf]
+    bin_limits = [-np.inf, -120, -60, -30, -20, -10, -5, 0, 5, 10, 20, 30, 60, 120, np.inf]
     labels = [
-        "More than a day early",
         "More than 2 hours early",
         "More than 1 hour early",
         "More than 30 minutes early",
@@ -115,7 +147,6 @@ def sumarise(day):
         "More than 30 minutes late",
         "More than 1 hour late",
         "More than 2 hours late",
-        "More than a day late",
     ]
 
     print('Distribution of departure delays:')
