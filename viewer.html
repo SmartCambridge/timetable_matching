@@ -53,10 +53,14 @@
 
     }
 
+    .popup th, .popup td {
+        vertical-align: top;
+    }
+
     </style>
 
-    <script type="text/javascript" src="results/rows-2018-09-27.js"></script>
-    <script type="text/javascript" src="results/stops-2018-09-27.js"></script>
+    <script type="text/javascript" src="results/rows-2018-10-02.js"></script>
+    <script type="text/javascript" src="results/stops-2018-10-02.js"></script>
 
     <script type="text/javascript">
 
@@ -133,6 +137,124 @@
             }
         }
 
+        var map;
+
+        var journey_layers = {};
+        var trip_layers = {};
+
+        function display_trip(row_num) {
+
+            var element = document.getElementById('trip-' + row_num);
+
+            if (trip_layers.hasOwnProperty(row_num)) {
+                map.removeLayer(trip_layers[row_num]);
+                delete trip_layers[row_num];
+                element.innerHTML = 'Show';
+            }
+
+            else {
+
+                var layer = L.layerGroup();
+
+                var trip = data.rows[row_num].trip;
+                var polyline = L.polyline([], trip_line_opts);
+                polyline.addTo(layer);
+                polyline.bindPopup(trip_as_html(trip, row_num));
+                trip.positions.forEach(function(position, index, positions) {
+                    polyline.addLatLng([position.Latitude, position.Longitude]);
+                    if (index == trip.departure_position) {
+                        L.marker([position.Latitude, position.Longitude], {icon: trip_departure})
+                        .bindPopup(position_as_html(position))
+                        .addTo(layer);
+                    }
+                    else if (index == trip.arrival_position) {
+                        L.marker([position.Latitude, position.Longitude], {icon: trip_arrival})
+                        .bindPopup(position_as_html(position))
+                        .addTo(layer);
+                    }
+                    else if (index === 0) {
+                        L.marker([position.Latitude, position.Longitude], {icon: trip_first})
+                        .bindPopup(position_as_html(position))
+                        .addTo(layer);
+                    }
+                    else if (index === (positions.length -1)) {
+                        L.marker([position.Latitude, position.Longitude], {icon: trip_last})
+                        .bindPopup(position_as_html(position))
+                        .addTo(layer);
+                    }
+                    L.circleMarker([position.Latitude, position.Longitude], trip_marker_opts)
+                        .bindPopup(position_as_html(position)).addTo(layer);
+                });
+
+                var origin = stops.stops[trip.OriginRef];
+                var origin_marker = L.circleMarker([origin.latitude, origin.longitude], trip_marker_opts)
+                    .bindPopup(stop_as_html(origin));
+                origin_marker.setStyle({color: "blue", radius: 10, fill: false, weight: 2 });
+                origin_marker.addTo(layer);
+
+                var destination = stops.stops[trip.DestinationRef];
+                var destination_marker = L.circleMarker([destination.latitude, destination.longitude], trip_marker_opts)
+                    .bindPopup(stop_as_html(destination));
+                destination_marker.setStyle({color: "blue", radius: 10, fill: false, weight: 2 });
+                destination_marker.addTo(layer);
+
+                trip_layers[row_num] = layer;
+                map.addLayer(layer);
+
+                element.innerHTML = '<b>Hide</b>';
+
+                map.fitBounds(polyline.getBounds().extend(origin_marker.getLatLng()).extend(destination_marker.getLatLng()));
+
+            }
+
+        }
+
+        function display_journey(row_num) {
+
+            var element = document.getElementById('journey-' + row_num);
+
+            if (journey_layers.hasOwnProperty(row_num)) {
+                map.removeLayer(journey_layers[row_num]);
+                delete journey_layers[row_num];
+                element.innerHTML = 'Show';
+            }
+
+            else {
+                var layer = L.layerGroup();
+                var journey = data.rows[row_num].journey;
+                var polyline = L.polyline([], journey_line_opts);
+                polyline.addTo(layer);
+                polyline.bindPopup(journey_as_html(journey, row_num));
+
+                journey.stops.forEach(function(stop, index, journey_stops) {
+                    var full_stop = stops.stops[stop.StopPointRef];
+                    polyline.addLatLng([full_stop.latitude, full_stop.longitude]);
+                    marker = L.circleMarker([full_stop.latitude, full_stop.longitude], journey_marker_opts)
+                        .bindPopup(journey_stop_as_html(stop));
+                    marker.addTo(layer);
+                    if (index === 0) {
+                        L.marker([full_stop.latitude, full_stop.longitude], {icon: journey_departure})
+                        .bindPopup(journey_stop_as_html(stop))
+                        .addTo(layer);
+                    }
+                    else if (index === (journey_stops.length -1)) {
+                        L.marker([full_stop.latitude, full_stop.longitude], {icon: journey_arrival})
+                        .bindPopup(journey_stop_as_html(stop))
+                        .addTo(layer);
+                    }
+                    marker.addTo(layer);
+                });
+
+                journey_layers[row_num] = layer;
+                map.addLayer(layer);
+
+                element.innerHTML = '<b>Hide</b>';
+
+                map.fitBounds(polyline.getBounds());
+
+            }
+
+        }
 
         function add_heading(row, text) {
             cell = document.createElement('th');
@@ -146,63 +268,77 @@
             row.appendChild(cell);
         }
 
-        function trip_as_html(trip) {
+        function trip_as_html(trip, counter) {
 
             var result = [];
-            result.push('<p><table>');
-            result.push(`<tr><th align="right">Time</th><td>${trip.OriginAimedDepartureTime}</td></tr>`);
+            var timestamp = moment(trip.OriginAimedDepartureTime);
+            result.push('<h1>Trip</h1>')
+            result.push('<table class="popup">');
+            result.push(`<tr><th align="right">Date</th><td>${timestamp.format("YYYY-MM-DD")}</td></tr>`);
+            result.push(`<tr><th align="right">Time</th><td>${timestamp.format("HH:mm")}</td></tr>`);
             result.push(`<tr><th align="right">From</th><td>${trip.OriginName} (${trip.OriginRef})</td></tr>`);
             result.push(`<tr><th align="right">To</th><td>${trip.DestinationName} (${trip.DestinationRef})</td></tr>`);
             result.push(`<tr><th align="right">Line</th><td>${trip.LineRef}</td></tr>`);
             result.push(`<tr><th align="right">Operator</th><td>${trip.OperatorRef}</td></tr>`);
             result.push(`<tr><th align="right">Direction</th><td>${trip.DirectionRef}</td></tr>`);
             result.push(`<tr><th align="right">Vehicle</th><td>${trip.VehicleRef}</td></tr>`);
-            result.push('</table></p>');
-
+            result.push('</table>');
+            result.push(`<p><a href="#" onclick="display_trip(${counter})">Hide trip</a></p>`);
             return result.join(" ");
         }
 
         function position_as_html(position) {
 
             var result = [];
-            result.push('<p><table>');
-            result.push(`<tr><th align="right">Time</th><td>${position.RecordedAtTime}</td></tr>`);
+            var timestamp = moment(position.RecordedAtTime);
+            result.push('<h1>Position</h1>')
+            result.push('<table class="popup">');
+            result.push(`<tr><th align="right">Date</th><td>${timestamp.format("YYYY-MM-DD")}</td></tr>`);
+            result.push(`<tr><th align="right">Time</th><td>${timestamp.format("HH:mm")}</td></tr>`);
             result.push(`<tr><th align="right">Bearing</th><td>${position.Bearing}</td></tr>`);
             result.push(`<tr><th align="right">Delay</th><td>${position.Delay}</td></tr>`);
-            result.push('</table></p>');
+            result.push('</table>');
 
             return result.join(" ");
         }
 
-        function journey_as_html(journey) {
+        function journey_as_html(journey, counter) {
 
             var result = [];
 
             var from = stops.stops[journey.stops[0].StopPointRef];
             var to = stops.stops[journey.stops[journey.stops.length -1].StopPointRef]
 
-            result.push('<p><table>');
-            result.push(`<tr><th align="right">Time</th><td>${journey.DepartureTime}</td></tr>`);
+            var timestamp = moment(journey.DepartureTime);
+
+            result.push('<h1>Journey</h1>');
+            result.push('<table class="popup">');
+            result.push(`<tr><th align="right">Date</th><td>${timestamp.format("YYYY-MM-DD")}</td></tr>`);
+            result.push(`<tr><th align="right">Time</th><td>${timestamp.format("HH:mm")}</td></tr>`);
             result.push(`<tr><th align="right">From</th><td>${from.indicator} ${from.common_name}, ${from.locality_name} (${from.atco_code})</td></tr>`);
             result.push(`<tr><th align="right">To</th><td>${to.indicator} ${to.common_name}, ${to.locality_name} (${to.atco_code})</td></tr>`);
             result.push(`<tr><th align="right">Line</th><td>${journey.Service.LineName}</td></tr>`);
             result.push(`<tr><th align="right">Operator</th><td>${journey.Service.OperatorCode}</td></tr>`);
             result.push(`<tr><th align="right">Direction</th><td>${journey.Direction}</td></tr>`);
-            result.push('</table></p>');
+            result.push('</table>')
+            result.push(`<p><a href="#" onclick="display_journey(${counter})">Hide journey</a></p>`);
 
             return result.join(" ");
         }
 
 
         function stop_as_html(stop) {
-            return(`<p>${stop.indicator} ${stop.common_name}, ${stop.locality_name} (${stop.atco_code})</p>`)
+            return(`<h1>Stop</h1><p>${stop.indicator} ${stop.common_name}, ${stop.locality_name} (${stop.atco_code})</p>`)
         }
 
         function journey_stop_as_html(stop) {
             var full_stop = stops.stops[stop.StopPointRef];
             var result = [];
-            result.push('<p><table>');
-            result.push(`<tr><th align="right">Time</th><td>${stop.time}</td></tr>`);
+            var timestamp = moment(stop.time);
+            result.push('<h1>Journey stop</h1>');
+            result.push('<table class="popup">');
+            result.push(`<tr><th align="right">Date</th><td>${timestamp.format("YYYY-MM-DD")}</td></tr>`);
+            result.push(`<tr><th align="right">Time</th><td>${timestamp.format("HH:mm")}</td></tr>`);
             result.push(`<tr><th align="right">Activity</th><td>${stop.Activity}</td></tr>`);
             result.push(`<tr><th align="right">Order</th><td>${stop.Order}</td></tr>`);
             result.push(`<tr><th align="right">Timing status</th><td>${stop.TimingStatus}</td></tr>`);
@@ -211,7 +347,7 @@
             result.push(`<tr><th align="right">Common name</th><td>${full_stop.common_name}</td></tr>`);
             result.push(`<tr><th align="right">Indicator</th><td>${full_stop.indicator}</td></tr>`);
             result.push(`<tr><th align="right">Locality name</th><td>${full_stop.locality_name}</td></tr>`);
-            result.push('</table></p>');
+            result.push('</table>');
 
             return result.join(" ");
         }
@@ -219,107 +355,6 @@
         function init() {
 
             map = L.map('map');
-
-            var journey_layers = {}
-            var trip_layers = {}
-
-            function display_trip(row_num, element) {
-
-                if (trip_layers.hasOwnProperty(row_num)) {
-                    map.removeLayer(trip_layers[row_num])
-                    delete trip_layers[row_num]
-                    element.innerHTML = 'Show'
-                }
-
-                else {
-
-                    var layer = L.layerGroup();
-
-                    var trip = data.rows[row_num].trip;
-                    var polyline = L.polyline([], trip_line_opts);
-                    polyline.addTo(layer);
-                    polyline.bindPopup(trip_as_html(trip))
-                    trip.positions.forEach(function(position, index, positions) {
-                        polyline.addLatLng([position.Latitude, position.Longitude]);
-                        if (index == trip.departure_position) {
-                            L.marker([position.Latitude, position.Longitude], {icon: trip_departure}).addTo(layer)
-                        }
-                        else if (index == trip.arrival_position) {
-                            L.marker([position.Latitude, position.Longitude], {icon: trip_arrival}).addTo(layer)
-                        }
-                        else if (index === 0) {
-                            L.marker([position.Latitude, position.Longitude], {icon: trip_first}).addTo(layer)
-                        }
-                        else if (index === (positions.length -1)) {
-                            L.marker([position.Latitude, position.Longitude], {icon: trip_last}).addTo(layer)
-                        }
-                        L.circleMarker([position.Latitude, position.Longitude], trip_marker_opts)
-                            .bindPopup(position_as_html(position)).addTo(layer);
-                    });
-
-                    var origin = stops.stops[trip.OriginRef]
-                    var origin_marker = L.circleMarker([origin.latitude, origin.longitude], trip_marker_opts)
-                        .bindPopup(stop_as_html(origin));
-                    origin_marker.setStyle({color: "blue", radius: 10, fill: false, weight: 2 });
-                    origin_marker.addTo(layer);
-
-                    var destination = stops.stops[trip.DestinationRef]
-                    var destination_marker = L.circleMarker([destination.latitude, destination.longitude], trip_marker_opts)
-                        .bindPopup(stop_as_html(destination));
-                    destination_marker.setStyle({color: "blue", radius: 10, fill: false, weight: 2 });
-                    destination_marker.addTo(layer);
-
-                    trip_layers[row_num] = layer;
-                    map.addLayer(layer)
-
-                    element.innerHTML = 'Hide'
-
-                    map.fitBounds(polyline.getBounds().extend(origin_marker.getLatLng()).extend(destination_marker.getLatLng()));
-
-                }
-
-            }
-
-            function display_journey(row_num, element) {
-
-                if (journey_layers.hasOwnProperty(row_num)) {
-                    map.removeLayer(journey_layers[row_num])
-                    delete journey_layers[row_num]
-                    element.innerHTML = 'Show'
-                }
-
-                else {
-                    var layer = L.layerGroup();
-                    var journey = data.rows[row_num].journey;
-                    var polyline = L.polyline([], journey_line_opts);
-                    polyline.addTo(layer);
-                    polyline.bindPopup(journey_as_html(journey))
-
-                    journey.stops.forEach(function(stop, index, journey_stops) {
-                        var full_stop = stops.stops[stop.StopPointRef];
-                        polyline.addLatLng([full_stop.latitude, full_stop.longitude]);
-                        marker = L.circleMarker([full_stop.latitude, full_stop.longitude], journey_marker_opts)
-                            .bindPopup(journey_stop_as_html(stop));
-                        marker.addTo(layer);
-                        if (index === 0) {
-                            L.marker([full_stop.latitude, full_stop.longitude], {icon: journey_departure}).addTo(layer);
-                        }
-                        else if (index === (journey_stops.length -1)) {
-                            L.marker([full_stop.latitude, full_stop.longitude], {icon: journey_arrival}).addTo(layer);
-                        }
-                        marker.addTo(layer);
-                    });
-
-                    journey_layers[row_num] = layer;
-                    map.addLayer(layer)
-
-                    element.innerHTML = 'Hide'
-
-                    map.fitBounds(polyline.getBounds());
-
-                }
-
-            }
 
             var table = document.createElement('table');
 
@@ -378,11 +413,12 @@
                     a.setAttribute('href', '#');
                     a.onclick = function(c) {
                         return function() {
-                            display_journey(c, this);
+                            display_journey(c);
                             return false;
                         };
                     }(counter);
-                    a.appendChild(document.createTextNode('Show'));
+                    a.id = 'journey-' + counter;
+                    a.innerHTML = 'Show';
                     cell = document.createElement('td');
                     cell.appendChild(a);
                     trow.appendChild(cell);
@@ -401,11 +437,12 @@
                     a.setAttribute('href', '#');
                     a.onclick = function(c) {
                         return function() {
-                            display_trip(c, this);
+                            display_trip(c);
                             return false;
                         };
                     }(counter);
-                    a.appendChild(document.createTextNode('Show'));
+                    a.id = 'trip-' + counter;
+                    a.innerHTML = 'Show';
                     cell = document.createElement('td');
                     cell.appendChild(a);
                     trow.appendChild(cell);
@@ -475,7 +512,16 @@
             L.control.scale().addTo(map);
 
             L.easyButton('fa-trash-alt', function(btn, map) {
-                map.fitBounds(area.getBounds());
+                for (var row in journey_layers) {
+                    if (journey_layers.hasOwnProperty(row)) {
+                        display_journey(row);
+                    }
+                }
+                for (row in trip_layers) {
+                    if (trip_layers.hasOwnProperty(row)) {
+                        display_trip(row);
+                    }
+                }
             }).addTo(map);
 
             // Mark the selection bounding box
