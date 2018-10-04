@@ -29,6 +29,10 @@
     <link rel="stylesheet" href="awesome-markers/leaflet.awesome-markers.css" />
     <script src="awesome-markers/leaflet.awesome-markers.js"></script>
 
+    <!-- Leaflet.PolyLineDecerator -->
+    <!-- https://github.com/bbecquet/Leaflet.PolylineDecorator -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-polylinedecorator/1.1.0/leaflet.polylineDecorator.js" integrity="sha256-1Unbn4Jf/36y7z5KHisWSKgLT4K1NofaiZRpzz6Hq2E=" crossorigin="anonymous"></script>
+
     <style>
 
     html {
@@ -59,61 +63,50 @@
 
     </style>
 
-    <script type="text/javascript" src="results/rows-2018-10-02.js"></script>
-    <script type="text/javascript" src="results/stops-2018-10-02.js"></script>
+    <script type="text/javascript" src="results/rows-2018-10-03.js"></script>
+    <script type="text/javascript" src="results/stops-2018-10-03.js"></script>
 
     <script type="text/javascript">
 
+        // https://sashat.me/2017/01/11/list-of-20-simple-distinct-colors/
+        var colors = [
+            "#e6194B", "#3cb44b", "#4363d8", "#f58231", "#911eb4", "#f032e6",
+            "#469990", "#9A6324", "#800000", "#808000", "#000075", "#000000"];
+
         var trip_marker_opts = {
             radius: 3,
-            weight: 1,
-            color: "blue",
+            weight: 2,
             fill: true,
             stroke: true,
             fillOpacity: 0.8
         };
 
         var trip_line_opts = {
-            color: "blue",
+            weight: 3,
         };
 
-        var trip_first = L.AwesomeMarkers.icon({
+        var trip_departure = L.AwesomeMarkers.icon({
             prefix: 'fa',
             icon: 'play-circle',
             markerColor: 'darkblue'
         });
 
-        var trip_last = L.AwesomeMarkers.icon({
+        var trip_arrival = L.AwesomeMarkers.icon({
             prefix: 'fa',
             icon: 'stop-circle',
             markerColor: 'darkblue'
         });
 
-        var trip_departure = L.AwesomeMarkers.icon({
-            prefix: 'fa',
-            icon: 'caret-right',
-            markerColor: 'darkblue'
-        });
-
-        var trip_arrival = L.AwesomeMarkers.icon({
-            prefix: 'fa',
-            icon: 'caret-left',
-            markerColor: 'darkblue'
-        });
-
-
-
         var journey_marker_opts = {
-            radius: 3,
-            weight: 1,
-            color: "orange",
-            fill: true,
+            radius: 4,
+            weight: 2,
+            fill: false,
             stroke: true,
-            fillOpacity: 0.8
         };
 
         var journey_line_opts = {
-            color: "orange",
+            dashArray: "5",
+            weight: 2,
         };
 
         var journey_departure = L.AwesomeMarkers.icon({
@@ -142,6 +135,21 @@
         var journey_layers = {};
         var trip_layers = {};
 
+        var line_colors = {};
+        var next_color = 0;
+
+        function get_color(row) {
+            if (line_colors.hasOwnProperty(row)) {
+                return line_colors[row];
+            }
+            else {
+                color = colors[next_color % colors.length];
+                line_colors[row] = color;
+                next_color += 1;
+                return color;
+            }
+        }
+
         function display_trip(row_num) {
 
             var element = document.getElementById('trip-' + row_num);
@@ -156,46 +164,54 @@
 
                 var layer = L.layerGroup();
 
+                color = get_color(row_num);
+
                 var trip = data.rows[row_num].trip;
                 var polyline = L.polyline([], trip_line_opts);
+                polyline.setStyle({color: color});
                 polyline.addTo(layer);
                 polyline.bindPopup(trip_as_html(trip, row_num));
                 trip.positions.forEach(function(position, index, positions) {
                     polyline.addLatLng([position.Latitude, position.Longitude]);
                     if (index == trip.departure_position) {
                         L.marker([position.Latitude, position.Longitude], {icon: trip_departure})
-                        .bindPopup(position_as_html(position))
+                        .bindPopup(position_as_html(position, index))
                         .addTo(layer);
                     }
                     else if (index == trip.arrival_position) {
                         L.marker([position.Latitude, position.Longitude], {icon: trip_arrival})
-                        .bindPopup(position_as_html(position))
-                        .addTo(layer);
-                    }
-                    else if (index === 0) {
-                        L.marker([position.Latitude, position.Longitude], {icon: trip_first})
-                        .bindPopup(position_as_html(position))
-                        .addTo(layer);
-                    }
-                    else if (index === (positions.length -1)) {
-                        L.marker([position.Latitude, position.Longitude], {icon: trip_last})
-                        .bindPopup(position_as_html(position))
+                        .bindPopup(position_as_html(position, index))
                         .addTo(layer);
                     }
                     L.circleMarker([position.Latitude, position.Longitude], trip_marker_opts)
-                        .bindPopup(position_as_html(position)).addTo(layer);
+                        .setStyle({color: color})
+                        .bindPopup(position_as_html(position, index)).addTo(layer);
                 });
+                L.polylineDecorator(polyline, {
+                    patterns: [ {
+                        offset: 25,
+                        repeat: 75,
+                        symbol: L.Symbol.arrowHead( {
+                            pixelSize: 15,
+                            polygon: false,
+                            pathOptions: {
+                                stroke: true,
+                                color: color,
+                            }
+                        } )
+                    } ]
+                } ).addTo(layer);
 
                 var origin = stops.stops[trip.OriginRef];
                 var origin_marker = L.circleMarker([origin.latitude, origin.longitude], trip_marker_opts)
                     .bindPopup(stop_as_html(origin));
-                origin_marker.setStyle({color: "blue", radius: 10, fill: false, weight: 2 });
+                origin_marker.setStyle({color: color, radius: 10, fill: false, weight: 2 });
                 origin_marker.addTo(layer);
 
                 var destination = stops.stops[trip.DestinationRef];
                 var destination_marker = L.circleMarker([destination.latitude, destination.longitude], trip_marker_opts)
                     .bindPopup(stop_as_html(destination));
-                destination_marker.setStyle({color: "blue", radius: 10, fill: false, weight: 2 });
+                destination_marker.setStyle({color: color, radius: 10, fill: false, weight: 2 });
                 destination_marker.addTo(layer);
 
                 trip_layers[row_num] = layer;
@@ -203,7 +219,7 @@
 
                 element.innerHTML = '<b>Hide</b>';
 
-                map.fitBounds(polyline.getBounds().extend(origin_marker.getLatLng()).extend(destination_marker.getLatLng()));
+                //map.fitBounds(polyline.getBounds().extend(origin_marker.getLatLng()).extend(destination_marker.getLatLng()));
 
             }
 
@@ -221,8 +237,11 @@
 
             else {
                 var layer = L.layerGroup();
+                color = get_color(row_num);
+
                 var journey = data.rows[row_num].journey;
                 var polyline = L.polyline([], journey_line_opts);
+                polyline.setStyle({color: color})
                 polyline.addTo(layer);
                 polyline.bindPopup(journey_as_html(journey, row_num));
 
@@ -230,27 +249,31 @@
                     var full_stop = stops.stops[stop.StopPointRef];
                     polyline.addLatLng([full_stop.latitude, full_stop.longitude]);
                     marker = L.circleMarker([full_stop.latitude, full_stop.longitude], journey_marker_opts)
+                        .setStyle({color: color})
                         .bindPopup(journey_stop_as_html(stop));
                     marker.addTo(layer);
-                    if (index === 0) {
-                        L.marker([full_stop.latitude, full_stop.longitude], {icon: journey_departure})
-                        .bindPopup(journey_stop_as_html(stop))
-                        .addTo(layer);
-                    }
-                    else if (index === (journey_stops.length -1)) {
-                        L.marker([full_stop.latitude, full_stop.longitude], {icon: journey_arrival})
-                        .bindPopup(journey_stop_as_html(stop))
-                        .addTo(layer);
-                    }
-                    marker.addTo(layer);
                 });
+                L.polylineDecorator(polyline, {
+                    patterns: [ {
+                        offset: 25,
+                        repeat: 75,
+                        symbol: L.Symbol.arrowHead( {
+                            pixelSize: 15,
+                            polygon: false,
+                            pathOptions: {
+                                stroke: true,
+                                color: color,
+                            }
+                        } )
+                    } ]
+                } ).addTo(layer);
 
                 journey_layers[row_num] = layer;
                 map.addLayer(layer);
 
                 element.innerHTML = '<b>Hide</b>';
 
-                map.fitBounds(polyline.getBounds());
+                //map.fitBounds(polyline.getBounds());
 
             }
 
@@ -283,11 +306,11 @@
             result.push(`<tr><th align="right">Direction</th><td>${trip.DirectionRef}</td></tr>`);
             result.push(`<tr><th align="right">Vehicle</th><td>${trip.VehicleRef}</td></tr>`);
             result.push('</table>');
-            result.push(`<p><a href="#" onclick="display_trip(${counter})">Hide trip</a></p>`);
+            result.push(`<p><a href="#" onclick="display_trip(${counter})">Hide this trip</a></p>`);
             return result.join(" ");
         }
 
-        function position_as_html(position) {
+        function position_as_html(position, index) {
 
             var result = [];
             var timestamp = moment(position.RecordedAtTime);
@@ -296,6 +319,7 @@
             result.push(`<tr><th align="right">Date</th><td>${timestamp.format("YYYY-MM-DD")}</td></tr>`);
             result.push(`<tr><th align="right">Time</th><td>${timestamp.format("HH:mm")}</td></tr>`);
             result.push(`<tr><th align="right">Bearing</th><td>${position.Bearing}</td></tr>`);
+            result.push(`<tr><th align="right">Order</th><td>${index}</td></tr>`);
             result.push(`<tr><th align="right">Delay</th><td>${position.Delay}</td></tr>`);
             result.push('</table>');
 
@@ -321,7 +345,7 @@
             result.push(`<tr><th align="right">Operator</th><td>${journey.Service.OperatorCode}</td></tr>`);
             result.push(`<tr><th align="right">Direction</th><td>${journey.Direction}</td></tr>`);
             result.push('</table>')
-            result.push(`<p><a href="#" onclick="display_journey(${counter})">Hide journey</a></p>`);
+            result.push(`<p><a href="#" onclick="display_journey(${counter})">Hide this journey</a></p>`);
 
             return result.join(" ");
         }
@@ -342,7 +366,7 @@
             result.push(`<tr><th align="right">Activity</th><td>${stop.Activity}</td></tr>`);
             result.push(`<tr><th align="right">Order</th><td>${stop.Order}</td></tr>`);
             result.push(`<tr><th align="right">Timing status</th><td>${stop.TimingStatus}</td></tr>`);
-            result.push(`<tr><th align="right">Run timr</th><td>${stop.run_time}</td></tr>`);
+            result.push(`<tr><th align="right">Run time</th><td>${stop.run_time}</td></tr>`);
             result.push(`<tr><th align="right">ATCO Code</th><td>${full_stop.atco_code}</td></tr>`);
             result.push(`<tr><th align="right">Common name</th><td>${full_stop.common_name}</td></tr>`);
             result.push(`<tr><th align="right">Indicator</th><td>${full_stop.indicator}</td></tr>`);
@@ -522,6 +546,8 @@
                         display_trip(row);
                     }
                 }
+                line_colors = {};
+                next_color = 0;
             }).addTo(map);
 
             // Mark the selection bounding box
