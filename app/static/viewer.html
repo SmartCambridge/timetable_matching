@@ -3,9 +3,6 @@
 <head>
     <title>Trip and Journey viewer</title>
 
-    <script type="text/javascript" src="results/rows-2018-09-30.js"></script>
-    <script type="text/javascript" src="results/stops-2018-09-30.js"></script>
-
     <!-- Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.2.0/dist/leaflet.css"
           integrity="sha512-M2wvCLH6DSRazYeZRIm1JnYyh22purTM+FDB5CsyxtQJYeKq83arPe5wgbNmcFXGqiSH2XR8dT/fJISVA1r/zQ=="
@@ -131,6 +128,9 @@
         }
 
         var map;
+
+        var data;
+        var stops;
 
         var journey_layers = {};
         var trip_layers = {};
@@ -376,7 +376,7 @@
             return result.join(" ");
         }
 
-        function init() {
+        function setup() {
 
             map = L.map('map');
 
@@ -556,6 +556,64 @@
             // Mark the selection bounding box
             var area = L.rectangle([[52.155610, 0.007896], [52.267842, 0.225048]], {color: "#000000", weight: 1, fill: false}).addTo(map);
             map.fitBounds(area.getBounds());
+
+        }
+
+        function init(){
+
+            var date = window.location.hash.substring(1);
+
+            console.log('Date is', `${date}`)
+
+            var done_rows = false;
+            var done_stops = false;
+
+            var xhr1 = new XMLHttpRequest();
+            console.log('/rows?' + date)
+            xhr1.open('GET', '/rows?' + date, true);
+            xhr1.send();
+            console.log('get rows - getting rows');
+            xhr1.onreadystatechange = function() {
+                if(xhr1.readyState === XMLHttpRequest.DONE) {
+                    if (xhr1.status !== 200) {
+                        console.log('get rows - API error, status', xhr1.status);
+                    }
+                    else {
+                        console.log('get rows - retrieved rows');
+                        data = JSON.parse(xhr1.responseText);
+                        console.log('get rows - parsed rows');
+
+                        done_rows = true;
+                        if (done_stops) {
+                            setup();
+                        }
+                    }
+
+                }
+            };
+
+            var xhr2 = new XMLHttpRequest();
+            xhr2.open('GET', `/stops?${date}`, true);
+            xhr2.send();
+            console.log('get stops - getting stops');
+            xhr2.onreadystatechange = function() {
+                if(xhr2.readyState === XMLHttpRequest.DONE) {
+                    if (xhr2.status !== 200) {
+                        console.log('get stops - API error, status', xhr2.status);
+                    }
+                    else {
+                        console.log('get stops - retrieved stops');
+                        stops = JSON.parse(xhr2.responseText);
+                        console.log('get stops - parsed stops');
+
+                        done_stops = true;
+                        if (done_rows) {
+                            setup();
+                        }
+                    }
+
+                }
+            };
 
         }
 
