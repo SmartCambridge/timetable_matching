@@ -3,6 +3,9 @@
 <head>
     <title>Trip and Journey viewer</title>
 
+    <script type="text/javascript" src="results/rows-2018-09-30.js"></script>
+    <script type="text/javascript" src="results/stops-2018-09-30.js"></script>
+
     <!-- Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.2.0/dist/leaflet.css"
           integrity="sha512-M2wvCLH6DSRazYeZRIm1JnYyh22purTM+FDB5CsyxtQJYeKq83arPe5wgbNmcFXGqiSH2XR8dT/fJISVA1r/zQ=="
@@ -62,9 +65,6 @@
     }
 
     </style>
-
-    <script type="text/javascript" src="results/rows-2018-10-03.js"></script>
-    <script type="text/javascript" src="results/stops-2018-10-03.js"></script>
 
     <script type="text/javascript">
 
@@ -306,7 +306,7 @@
             result.push(`<tr><th align="right">Direction</th><td>${trip.DirectionRef}</td></tr>`);
             result.push(`<tr><th align="right">Vehicle</th><td>${trip.VehicleRef}</td></tr>`);
             result.push('</table>');
-            result.push(`<p><a href="#" onclick="display_trip(${counter})">Hide this trip</a></p>`);
+            result.push(`<p><a href="#" onclick="display_trip(${counter}); return false">Hide this trip</a></p>`);
             return result.join(" ");
         }
 
@@ -345,7 +345,7 @@
             result.push(`<tr><th align="right">Operator</th><td>${journey.Service.OperatorCode}</td></tr>`);
             result.push(`<tr><th align="right">Direction</th><td>${journey.Direction}</td></tr>`);
             result.push('</table>')
-            result.push(`<p><a href="#" onclick="display_journey(${counter})">Hide this journey</a></p>`);
+            result.push(`<p><a href="#" onclick="display_journey(${counter}); return false">Hide this journey</a></p>`);
 
             return result.join(" ");
         }
@@ -391,6 +391,7 @@
             add_heading(trow, 'To');
 
             add_heading(trow, 'Journey: Line');
+            add_heading(trow, 'Journey: Direction');
             add_heading(trow, 'Journey: Depart');
             add_heading(trow, 'Journey: Arrive');
             add_heading(trow, '');
@@ -431,6 +432,7 @@
 
                 if (row.journey) {
                     add_data(trow, row.journey.Service.LineName);
+                    add_data(trow, row.journey.Direction)
                     add_data(trow, moment(row.journey.stops[0].time).format("HH:mm"));
                     add_data(trow, moment(row.journey.stops[row.journey.stops.length - 1].time).format("HH:mm"));
                     var a = document.createElement('a');
@@ -448,6 +450,7 @@
                     trow.appendChild(cell);
                 }
                 else {
+                    add_data(trow, '');
                     add_data(trow, '');
                     add_data(trow, '');
                     add_data(trow, '');
