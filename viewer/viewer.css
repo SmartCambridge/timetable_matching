@@ -1,0 +1,26 @@
+
+html {
+    height: 100%;
+    width: 100%;
+}
+
+.results {
+    height: 100%;
+    width: 100%;
+}
+
+.data-table {
+    height: 50%;
+    overflow: scroll;
+    width: 100%;
+}
+
+.map {
+    height: 50%;
+    width: 100%;
+
+}
+
+.popup th, .popup td {
+    vertical-align: top;
+}
