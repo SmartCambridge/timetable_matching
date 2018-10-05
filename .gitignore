@@ -1,4 +1,4 @@
 setup_environment
 __pycache__
-results/
+viewer/results/
 .DS_Store

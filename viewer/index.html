@@ -569,8 +569,7 @@
             var done_stops = false;
 
             var xhr1 = new XMLHttpRequest();
-            console.log('/rows?' + date)
-            xhr1.open('GET', '/rows?' + date, true);
+            xhr1.open('GET', `results/rows-${date}.json`, true);
             xhr1.send();
             console.log('get rows - getting rows');
             xhr1.onreadystatechange = function() {
@@ -593,7 +592,7 @@
             };
 
             var xhr2 = new XMLHttpRequest();
-            xhr2.open('GET', `/stops?${date}`, true);
+            xhr2.open('GET', `results/stops-${date}.json`, true);
             xhr2.send();
             console.log('get stops - getting stops');
             xhr2.onreadystatechange = function() {
