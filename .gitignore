@@ -2,3 +2,4 @@ setup_environment
 __pycache__
 viewer/results/
 .DS_Store
+venv
