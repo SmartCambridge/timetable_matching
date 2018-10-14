@@ -1,42 +1,36 @@
-import calendar
+
 import coreapi
-import datetime
 import logging
 import os
 
 logger = logging.getLogger('__name__')
 
-home = os.getenv('HOME')
-
 # Where to find the real-time data
-LOAD_PATH = os.path.join(home, 'icp/data/sirivm_json/data_bin/')
-if not os.path.isdir(LOAD_PATH):
-    LOAD_PATH = '/media/tfc/sirivm_json/data_bin/'
+LOAD_PATH = os.getenv('SIRIVM_PATH', '/media/tfc/sirivm_json/data_bin/')
 
 # Where to find the timetable data
-TIMETABLE_PATH = os.path.join(home, 'icp/data/TNDS_bus_data/sections/')
+TIMETABLE_PATH = os.getenv('TIMETABLE_PATH', '/media/tfc/tnds/sections/')
 
 # Where to find the TFC API schema
-API_SCHEMA = 'https://tfc-app4.cl.cam.ac.uk/api/docs/'
+API_SCHEMA = os.getenv('API_SCHEMA', 'https://smartcambridge.org/api/docs/')
 
-# Huntingdon -> Milndehall, Saffron Walden -> Earith
-# BOUNDING_BOX = "-0.289078,51.933682,0.579529,52.383144"
-# Bar Hill <-> Fulbourn
-BOUNDING_BOX = '0.007896,52.155610,0.225048,52.267842'
+# Default is roughly Bar Hill <-> Fulbourn
+BOUNDING_BOX = os.getenv('BOUNDING_BOX', '0.007896,52.155610,0.225048,52.267842')
 
 # TNDS regious to process
-TNDS_REGIONS = ('EA', 'SE')
+TNDS_REGIONS = os.getenv('TNDS_REGIONS', 'EA SE').split()
+
+API_TOKEN = os.getenv('API_TOKEN', None)
+assert API_TOKEN, 'API_TOKEN environment variable not set'
 
 
 def get_client():
     '''
     Return a coreapi client instance initialised with an access token.
     '''
-    token = os.getenv('API_TOKEN', None)
-    assert token, 'API_TOKEN environment variable not set'
     auth = coreapi.auth.TokenAuthentication(
         scheme='Token',
-        token=token
+        token=API_TOKEN
     )
     client = coreapi.Client(auth=auth)
     return client
