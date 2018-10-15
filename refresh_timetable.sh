@@ -24,6 +24,8 @@ if  ! cd "${path}"; then
     echo "Can't cd to ${path} to store the timetable" >&2
     exit
 fi
+# Moe one directory up becasue we ar about to replace 'sections'
+cd ..
 
 # Update no more than once every 18 hours
 if [[ -e .last_update ]]; then
