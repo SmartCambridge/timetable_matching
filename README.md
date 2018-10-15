@@ -3,7 +3,7 @@ Matching timetabled bus journeys to archived real-time bus trips
 
 The scripts in this repository attempt to match real-time bus position information against timetabled journeys and to present the results as a table from which trips and journeys can be viewed on a map.
 
-The processing takes place in several phases. These can be run individually, with intermediate output saved in JSON files, or in a single pass by `do_everything.py` which uses the individual scripts as libraries and which only saves the final analysed files.
+The processing takes place in several phases. These can be run individually, with intermediate output saved in JSON files, or in a single pass by `scripts/do_everything.py` which uses the individual scripts as libraries and which only saves the final analysed files.
 
 Processing is based on 24 hour periods from midnight. This is problematic for journeys and trips that span midnight.
 
@@ -17,11 +17,10 @@ Initial setup
 **Note** that this processing requires access to archived SIRI-VM real-time bus data in the JSON format used by the University of Cambridge adaptive Cities Project.
 
 1. Clone this repository
-2. Obtain a copy of the `txc_helper` module from `https://github.com/jw35/operating_profile`
-3. If required, create and activate a Python virtual environment
-4. Install dependencies: `pip install -r requirements.txt`
-5. Make a copy of `setup_environment.skel` as `setup_environment` and edit it to suite
-6. `source setup_environment`
+2. If required, create and activate a Python virtual environment
+3. Install dependencies: `pip install -r requirements.txt`
+4. Make a copy of `setup_environment.skel` as `setup_environment` and edit it to suite
+5. `source setup_environment`
 
 Processing steps
 ================
@@ -31,7 +30,7 @@ Extract journeys
 
 All timetabled vehicle journeys for a particular day are extracted from the TNDS data, taking account of their associated service's start and end dates, and of the operating profile of the associated service and of the journey itself. Journey's that do not run on the day on question are ignored, as are journeys that neither start nor end within the configured bounding box. Journey patterns are expanded to include a timestamp for the journey at each stop.
 
-The extraction is performed by `get_journeys.py`, which emits `journeys-<yyy>-<mm>-<dd>.json`. In addition to metadata, this file contains a list of every possible journey:
+The extraction is performed by `scripts/get_journeys.py`, which emits `journeys-<yyy>-<mm>-<dd>.json`. In addition to metadata, this file contains a list of every possible journey:
 
 ```
 {
@@ -73,7 +72,7 @@ The extraction is performed by `get_journeys.py`, which emits `journeys-<yyy>-<m
 }
 ```
 
-Alternatively, this processing can be done by `do_everything.py` which keeps intermediate results in memory.
+Alternatively, this processing can be done by `scripts/do_everything.py` which keeps intermediate results in memory.
 
 It yields about 2500 journeys.
 
@@ -94,7 +93,7 @@ An attempt is made to derive an actual departure time for the origin stop and an
 
 This process yields departure times for about 2000 trips, arrival times for about 1500 trips, and both for about 1300 trips.
 
-This processing is performed by `get_trips.py`, which emits `trips-<yyy>-<mm>-<dd>.json`. In addition to metadata, this contains a list of all extracted trips:
+This processing is performed by `scripts/get_trips.py`, which emits `trips-<yyy>-<mm>-<dd>.json`. In addition to metadata, this contains a list of all extracted trips:
 
 ```
 {
@@ -151,7 +150,7 @@ This processing is performed by `get_trips.py`, which emits `trips-<yyy>-<mm>-<d
 }
 ```
 
-Alternatively, the processing can be done by `do_everything.py` which keeps intermediate results in memory.
+Alternatively, the processing can be done by `scripts/do_everything.py` which keeps intermediate results in memory.
 
 Match journeys and trips
 ------------------------
@@ -170,7 +169,7 @@ Doing so results in about 2000 one-to-one (`1-1`) matches. The alternative outco
 
 * **Multiple journeys with zero, 1, or multiple trips** (`*-0`, `*-1`, `*-*`) These are very rare and normally appear to be errors in the timetable.
 
-This processing is performed by `merge.py` which reads `journeys-<yyy>-<mm>-<dd>.json` and `trips-<yyy>-<mm>-<dd>.json` and emits `merged-<yyy>-<mm>-<dd>.json`. In addition to metadata, this includes a list where each row contains:
+This processing is performed by `scripts/merge.py` which reads `journeys-<yyy>-<mm>-<dd>.json` and `trips-<yyy>-<mm>-<dd>.json` and emits `merged-<yyy>-<mm>-<dd>.json`. In addition to metadata, this includes a list where each row contains:
 
 * Zero or more matching journeys
 * Zero or more matching trips
@@ -201,14 +200,14 @@ This processing is performed by `merge.py` which reads `journeys-<yyy>-<mm>-<dd>
 }
 ```
 
-Alternatively, the processing can be done by `do_everything.py` which keeps intermediate results in memory.
+Alternatively, the processing can be done by `script/do_everything.py` which keeps intermediate results in memory.
 
 Lookup full stop information
 ----------------------------
 
 In the merged data, calling points in journeys are identified by NAPTAN 'ATCO' codes. This step generates a lookup table between ATCO codes and other stop information, such as the stop's 'common name' and 'locality'. This step protects against changes in the NAPTAN stop data in the future.
 
-This processing is performed by `extract_stops.py` which reads `merged-<yyy>-<mm>-<dd>.json`, or by `do_everything.py`. Both emit `stops-<yyy>-<mm>-<dd>.json`. In addition to metadata, this includes a simple list:
+This processing is performed by `scripts/extract_stops.py` which reads `merged-<yyy>-<mm>-<dd>.json`, or by `scripts/do_everything.py`. Both emit `stops-<yyy>-<mm>-<dd>.json`. In addition to metadata, this includes a simple list:
 
 ```
 {
@@ -240,7 +239,7 @@ This step expands the merged data into what you would expect from an 'OUTER JOIN
 
 This step also calculates departure and arrival delays for those trips for which it was possible to extract actual departure and arrival times.
 
-This processing is performed by `expand_merged.py` which reads `merged-<yyy>-<mm>-<dd>.json` and `stops-<yyy>-<mm>-<dd>.json`, or by `do_everything.py`. Both emit results in JSON as `rows-<yyy>-<mm>-<dd>.json`. In addition to metadata, this includes a list of matched rows each including a single journey and a single trip (or `null` if there is no corresponding journey or trip):
+This processing is performed by `scripts/expand_merged.py` which reads `merged-<yyy>-<mm>-<dd>.json` and `stops-<yyy>-<mm>-<dd>.json`, or by `scripts/do_everything.py`. Both emit results in JSON as `rows-<yyy>-<mm>-<dd>.json`. In addition to metadata, this includes a list of matched rows each including a single journey and a single trip (or `null` if there is no corresponding journey or trip):
 
 ```
 {
@@ -274,7 +273,7 @@ Generate CSV
 
 This step converts the row data into CSV, suitable for processing in a spreadsheet. This contains a subset of the row data omitting the stops in journeys and the individual position reports in trips. The first row of the file contains column headings. The file uses the UTF-8 character encoding.
 
-This processing is performed by `create_csv.py` which reads `rows-<yyy>-<mm>-<dd>.json`, or by `do_everything.py`. Both emit results as `rows-<yyy>-<mm>-<dd>.csv`.
+This processing is performed by `scripts/create_csv.py` which reads `rows-<yyy>-<mm>-<dd>.json`, or by `scripts/do_everything.py`. Both emit results as `rows-<yyy>-<mm>-<dd>.csv`.
 
 Analysis steps
 ==============
@@ -284,7 +283,7 @@ Analyse performance
 
 This step produces numeric summaries of a day's bus services and prints them. It uses the row data created by the step above which means it over-counts the number of trips and journeys that appear on the 'one' side of many-to-one or one-to-many matches, or on either side of many-to-many matches.
 
-This process is performed by `analyse.py` (but not by `do_everything.py`). It reads `rows-<yyy>-<mm>-<dd>.csv` and prints its results to STDOUT.
+This process is performed by `scripts/analyse.py` (but not by `scripts/do_everything.py`). It reads `rows-<yyy>-<mm>-<dd>.csv` and prints its results to STDOUT.
 
 Web-based viewer
 ----------------

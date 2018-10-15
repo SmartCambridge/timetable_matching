@@ -1,18 +1,22 @@
 
-# Set PYTHONPATH to include a copy of the txc_helper Python module
-
-export PYTHONPATH=
-
 # Set API_TOKEN to a SmartCambridge API token valid for the server
-# selected by the API_SCHEMA variable in util.py
+# selected by the API_SCHEMA variable below or the default of
+# https://smartcambridge.org/api/docs/
 
 export API_TOKEN=
 
-# Set the folowing to override the built-in defaults
+# Set TNDS_USERNAME and TNDS_PASSWORD to appropriate credentials for
+# retrieving TNDS timetable data
+# (https://www.travelinedata.org.uk/traveline-open-data/traveline-national-dataset/)
 
-# A directory containing SIRI-VM data in
-# JSON format stored in a conventioanl Adaptive Cities Program
-# directory heirachy (yyyy/mm/dd/<timestamp>_yyyy-mm-dd-hh-mm-ss.json)
+export TNDS_USERNAME=
+export TNDS_PASSWORD=
+
+# Uncomment and set the following to override the built-in defaults
+
+# A directory containing SIRI-VM data in JSON format stored in a
+# conventional Adaptive Cities Program directory hierarchy
+# (yyyy/mm/dd/<timestamp>_yyyy-mm-dd-hh-mm-ss.json)
 
 ##export SIRIVM_PATH='/media/tfc/sirivm_json/data_bin/'
 
@@ -20,6 +24,10 @@ export API_TOKEN=
 # per region
 
 ##export TIMETABLE_PATH='/media/tfc/tnds/sections/'
+
+# Destination for processed 'rows-*' and 'stops-*' files
+
+##export SAVE_PATH=/media/tfc/cam_tt_matching/json/
 
 # The URL of a Core Schema schema for the SmartCambridge API
 
