@@ -26,8 +26,9 @@ fi
 
 ./refresh_timetable.sh
 
-if ! cd "${SAVE_PATH}" ; then
-    echo "Can't cd to ${SAVE_PATH} to store output" >&2
+path="${SAVE_PATH:-/media/tfc/cam_tt_matching/json/}"
+if ! cd "${path}" ; then
+    echo "Can't cd to ${path} to store output" >&2
     exit
 fi
 
