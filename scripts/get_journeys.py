@@ -133,7 +133,7 @@ def process(filename, day, interesting_stops):
                     'Order': From.get('SequenceNumber'),
                     'Activity': From.find('n:Activity', NS).text,
                     'TimingStatus': From.find('n:TimingStatus', NS).text,
-                    'time': time.isoformat(timespec='seconds')
+                    'time': time.replace(microsecond=0).isoformat()
                 }
 
                 # Work out the time at the next stop
@@ -157,7 +157,7 @@ def process(filename, day, interesting_stops):
                 'Order': to.get('SequenceNumber'),
                 'Activity': to.find('n:Activity', NS).text,
                 'TimingStatus': to.find('n:TimingStatus', NS).text,
-                'time': time.isoformat(timespec='seconds')
+                'time': time.replace(microsecond=0).isoformat()
             }
 
             journey_stops.append(stop)
@@ -174,7 +174,7 @@ def process(filename, day, interesting_stops):
             'file': filename,
             'PrivateCode': vehicle_journey.find('n:PrivateCode', NS).text,
             'VehicleJourneyCode': vehicle_journey.find('n:VehicleJourneyCode', NS).text,
-            'DepartureTime': departure_timestamp.isoformat(timespec='seconds'),
+            'DepartureTime': departure_timestamp.replace(microsecond=0).isoformat(),
             'Service': {
                 'PrivateCode': service.find('n:PrivateCode', NS).text,
                 'ServiceCode': service.find('n:ServiceCode', NS).text,
