@@ -27,7 +27,7 @@ export TNDS_PASSWORD=
 
 # Destination for processed 'rows-*' and 'stops-*' files
 
-##export SAVE_PATH=/media/tfc/cam_tt_matching/json/
+##export SAVE_PATH='/media/tfc/cam_tt_matching/json/'
 
 # The URL of a Core Schema schema for the SmartCambridge API
 
