@@ -7,13 +7,62 @@
 # Unzip the results and store them in directories named after the regions
 # within TIMETABLE_PATH (default /media/tfc/tnds/sections/).
 #
-# Do the download at most once every 18 hours (1080 min)
+# Only do anything at most once every few hours (120 min), and even then
+# only download files if their modification date has changed and only
+# unzip them if the files themselves have changed.
 
 set -e
 
 source setup_environment
 
+# Find a working md5sum command (Linux vs. MacOS)
+md5sum='md5'
+command -v "${md5sum}" >/dev/null 2>&1 || md5sum='md5sum'
+
+process_section() {
+    # Do a 'get if modified' on a section file and unzip it if its change
+
+    section=$1
+    echo "Doing section ${section}" >&2
+
+    filename="${section}.zip"
+
+    # If we have a previous version of the zip file
+    if [[ -e "${filename}" ]]; then
+        old_md5=$(${md5sum} "${filename}")
+        time_cond="--time-cond ${filename}"
+    # Otherwise...
+    else
+        old_md5=''
+        time_cond=''
+    fi
+
+    # Try getting it
+    curl --user "${TNDS_USERNAME}:${TNDS_PASSWORD}" \
+         --output "${filename}" \
+         --remote-time \
+         ${time_cond} \
+         "${base}${filename}"
+
+    # Unzip it if it actually changed (or it was new)
+    if [[ $(${md5sum} "$filename") != "${old_md5}" ]]; then
+        echo "Section ${section} new or changed - unzipping"
+        tmp=$(mktemp -d XXXXXX)
+        unzip -d "${tmp}" "${filename}"
+        # Move it into place with two 'mv's to be a fast as possible
+        if [[ -e "${section}" ]]; then
+            mv "${section}" "${section}.old"
+        fi
+        mv "${tmp}" "${section}"
+        rm -rf "${section}.old"
+    else
+        echo "Section ${section} unchanged"
+    fi
+
+}
+
 base='ftp://ftp.tnds.basemap.co.uk/'
+
 if [[ "${TNDS_USERNAME}" = "" || "${TNDS_PASSWORD}" = "" ]]; then
     echo 'Please set TNDS_USERNAME and/or TNDS_PASSWORD in setup_environment' >&2
     exit 1
@@ -21,15 +70,13 @@ fi
 
 path="${TIMETABLE_PATH:-/media/tfc/tnds/sections/}"
 if  ! cd "${path}"; then
-    echo "Can't cd to ${path} to store the timetable" >&2
+    echo "Can't cd to ${path} to store the timetables" >&2
     exit
 fi
-# Moe one directory up becasue we ar about to replace 'sections'
-cd ..
 
-# Update no more than once every 18 hours
+# Do all of this no more than once every few hours
 if [[ -e .last_update ]]; then
-    if ! test "$(find .last_update -mmin +1080)"; then
+    if ! test "$(find .last_update -mmin +120)"; then
         echo 'Timetable files updated recently - not doing so again' >&2
         exit
     fi
@@ -37,21 +84,9 @@ fi
 
 echo 'Updating timetable files' >&2
 
-zipdir=$(mktemp -d zip.XXXX)
-sectiondir=$(mktemp -d sections.XXXX)
-
-for section in ${TNDS_REGIONS:-EA SE}
-    do
-        echo "Doing section ${section}" >&2
-        curl  --user "${TNDS_USERNAME}:${TNDS_PASSWORD}" --output "${zipdir}/${section}.zip" "${base}${section}.zip"
-        mkdir -p "${sectiondir}/${section}"
-        unzip -d "${sectiondir}/${section}" "${zipdir}/${section}.zip"
-    done
-
-rm -r "${zipdir}"
-
-rm -rf sections
-mv "${sectiondir}" ./sections
+for section in ${TNDS_REGIONS:-EA SE}; do
+    process_section "${section}"
+done
 
 touch .last_update
 
