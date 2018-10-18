@@ -53,7 +53,11 @@ const journey_line_opts = {
 // Handler for onload event
 function init(){
 
-    var date = window.location.hash.substring(1);
+    // Get a date to process. Default to yesterday
+    var date = window.location.search.substring(1);
+    if (date === '') {
+        window.location.href += moment().subtract(1, 'days').format("?YYYY-MM-DD");
+    }
 
     var requests_done = 0;
 
@@ -63,7 +67,7 @@ function init(){
     xhr1.onreadystatechange = function() {
         if(xhr1.readyState === XMLHttpRequest.DONE) {
             if (xhr1.status !== 200) {
-                alert('Failed to get data - API error: ' + xhr1.status);
+                alert(`Failed to get trip/journey data for ${date} - status ${xhr1.status}`);
             }
             else {
                 data = JSON.parse(xhr1.responseText);
@@ -82,7 +86,7 @@ function init(){
     xhr2.onreadystatechange = function() {
         if(xhr2.readyState === XMLHttpRequest.DONE) {
             if (xhr2.status !== 200) {
-                alert('Failed to get stops - API error' + xhr2.status);
+                alert(`Failed to get stop data for ${date} - status ${xhr1.status}`);
             }
             else {
                 stops = JSON.parse(xhr2.responseText);
@@ -144,7 +148,7 @@ function draw_table() {
     var table = document.createElement('table');
 
     var trow = document.createElement('tr');
-    add_heading(trow, '');
+    add_heading(trow, 'Row');
     add_heading(trow, 'Type');
     add_heading(trow, 'Date');
     add_heading(trow, 'Time');
@@ -155,11 +159,11 @@ function draw_table() {
     add_heading(trow, 'Journey: Direction');
     add_heading(trow, 'Journey: Depart');
     add_heading(trow, 'Journey: Arrive');
-    add_heading(trow, '');
+    add_heading(trow, 'Journey: Show');
 
-    add_heading(trow, '');
+    add_heading(trow, 'link');
 
-    add_heading(trow, '');
+    add_heading(trow, 'Trip: Show');
     add_heading(trow, 'Trip: Line');
     add_heading(trow, 'Trip: Vehicle');
     add_heading(trow, 'Trip: Depart');
@@ -274,13 +278,33 @@ function draw_table() {
         rows_counter: true,
         btn_reset: true,
         status_bar: true,
-        sticky_headers: true
+        sticky_headers: true,
+        state: {
+            types: ['hash'],
+            filters: true,
+            sort: true,
+            columns_visibility: true
+        },
+        extensions: [
+            {   name: 'sort',
+                types: ['number'],
+            },
+            {
+                name: 'colsVisibility'
+            }
+        ],
+        loader: {
+            target_id: 'data-table'
+        },
     };
 
     var tf = new TableFilter(table, tf_config);
-    tf.init();
+    var sort = tf.extension('sort');
+    var colsVisibility = tf.extension('colsVisibility');
 
     var results = document.getElementById('data-table');
+    results.innerHTML = '';
+    tf.init();
     results.appendChild(table);
 
 }
