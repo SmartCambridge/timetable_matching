@@ -57,6 +57,7 @@ function init(){
     var date = window.location.search.substring(1);
     if (date === '') {
         window.location.href += moment().subtract(1, 'days').format("?YYYY-MM-DD");
+        return;
     }
 
     var requests_done = 0;
