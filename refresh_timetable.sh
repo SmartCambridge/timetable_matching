@@ -8,16 +8,12 @@
 # within TIMETABLE_PATH (default /media/tfc/tnds/sections/).
 #
 # Only do anything at most once every few hours (120 min), and even then
-# only download files if their modification date has changed and only
-# unzip them if the files themselves have changed.
+# only download files if their modification date has changed.
 
 set -e
 
 source setup_environment
 
-# Find a working md5sum command (Linux vs. MacOS)
-md5sum='md5'
-command -v "${md5sum}" >/dev/null 2>&1 || md5sum='md5sum'
 
 process_section() {
     # Do a 'get if modified' on a section file and unzip it if its change
@@ -27,28 +23,19 @@ process_section() {
 
     filename="${section}.zip"
 
-    # If we have a previous version of the zip file
-    if [[ -e "${filename}" ]]; then
-        old_md5=$(${md5sum} "${filename}")
-        time_cond="--time-cond ${filename}"
-    # Otherwise...
-    else
-        old_md5=''
-        time_cond=''
-    fi
-
     # Try getting it
-    curl --user "${TNDS_USERNAME}:${TNDS_PASSWORD}" \
+    size=$(curl --user "${TNDS_USERNAME}:${TNDS_PASSWORD}" \
          --output "${filename}" \
          --remote-time \
-         ${time_cond} \
-         "${base}${filename}"
+         --time-cond "${filename}" \
+         --write-out '%{size_download}' \
+         "${base}${filename}")
 
     # Unzip it if it actually changed (or it was new)
-    if [[ $(${md5sum} "$filename") != "${old_md5}" ]]; then
+    if [[ ${size} -ne 0 ]]; then
         echo "Section ${section} new or changed - unzipping"
         tmp=$(mktemp -d XXXXXX)
-        unzip -d "${tmp}" "${filename}"
+        unzip -q -d "${tmp}" "${filename}"
         # Move it into place with two 'mv's to be a fast as possible
         if [[ -e "${section}" ]]; then
             mv "${section}" "${section}.old"
@@ -90,4 +77,4 @@ done
 
 touch .last_update
 
-echo 'Timetable files updated' >&2
+echo 'Timetable files up to date' >&2
