@@ -294,12 +294,10 @@ Journeys and/or routes can be shown on the map on the bottom half of the page by
 
 The origin and destination stops of displayed trips as shown by circles. The positions used for the start and end timing of the trip (if any) are identified by markers displaying 'play' and 'stop' icon respectively.
 
-The day to be analysed is selected by providing an HTML fragment-id after a '#' in the URL which must containing 'YYYY-MM-DD'. The JavaScript powering the page expects to find `rows-<yyy>-<mm>-<dd>.json` and corresponding `stops-<yyy>-<mm>-<dd>.json` files within the relative URL `results/`.
+The HTML page requires no server-side processing, but has to be served over HTTP and not accessed directly as a file (at least by Chrome) otherwise the XHR requests it uses to load the data fail. For local use, the script `start_server.sh` will start a stand-alone web server (using Python's http.server module) serving the page at `http://127.0.0.1#8000/`. Alternative the page an analysed data files can be served by any other web server.
 
-The HTML page requires no server-side processing, but has to be served over HTTP and not accessed directly as a file (at least by Chrome) otherwise the XHR requests it uses to load the data fail. For local use, the script `start_server.sh` will start a stand-alone web server (using Python's http.server module) serving the page at `http://127.0.0.1#8000/`.
+The day to be analysed is read from the query string in the URL which must containing 'YYYY-MM-DD', if missing it defaults to yesterday's date. For example:
 
-Alternative the page an analysed data files can be served by any other web server.
+    http://127.0.0.1#8000/?2018-10-01
 
-Accessing the page directly will result in an error popup if no date has been selected. Select a day to display (for which data file need to be available) like this:
-
-    http://127.0.0.1#8000/#2018-10-01
+The JavaScript powering the page expects to find `rows-<yyy>-<mm>-<dd>.json` and corresponding `stops-<yyy>-<mm>-<dd>.json` files under the relative URL `results/` and displays an error popup if either are missing. 
