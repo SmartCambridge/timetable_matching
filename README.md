@@ -32,8 +32,8 @@ Installation
 
 The script `refresh_timetable.sh` will fetch a copy of the requred timetable files into `/media/tfc/tnds`. It runs no more than once every 2 hours and only fetched timetable data when it changes.
 
-The script `process_day.sh` (which itself runs `refresh_timetable.sh`) takes one or more 'YYYY-MM-DD' command-line parameters and generates merged data files for the corresponding days. It shouldn't be run for a day that doesn't have complete trip data (like 'today').
+The script `process_day.sh` (which itself runs `refresh_timetable.sh`) takes zero or more 'YYYY-MM-DD' command-line parameters and generates merged data files for the corresponding days. If run with no command-line parameters it generates merged data files for "yesterday". It shouldn't be run for a day that doesn't have complete trip data (like 'today').
 
-The web interface for interrogating the analysed data is at `http://<hostname>/backdoor/tt_matching/index.html`. It needs to be run with a fragment identifier identifying the day to analyse, e.g.
+The web interface for interrogating the analysed data is at `http://<hostname>/backdoor/tt_matching/index.html`. It needs to be run with a query parameter identifying the day to analyse, e.g.
 
-    http://<hostname>/backdoor/tt_matching/index.html#2018-10-01
+    http://<hostname>/backdoor/tt_matching/index.html?2018-10-01
