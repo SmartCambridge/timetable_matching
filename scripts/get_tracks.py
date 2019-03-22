@@ -96,13 +96,10 @@ def get_tracks(client, schema, date, interesting_stops):
             if vehicle not in tracks:
 
                 tracks[vehicle] = {}
-
+                tracks[vehicle]['vehicle'] = vehicle
                 tracks[vehicle]['positions'] = []
-
                 tracks[vehicle]['bbox'] = [None, None, None, None]
-
                 tracks[vehicle]['lines'] = set()
-
                 tracks[vehicle]['origins'] = set()
                 tracks[vehicle]['destinations'] = set()
 
@@ -125,13 +122,15 @@ def get_tracks(client, schema, date, interesting_stops):
     logger.info("Found %s tracks", len(tracks))
 
     # Sort position records by time, and line, orgin and destination as text
+    result = []
     for track in tracks.values():
         track['positions'].sort(key=lambda pos: pos['RecordedAtTime'])
         track['lines'] = sorted(track['lines'])
         track['origins'] = sorted(track['origins'])
         track['destinations'] = sorted(track['destinations'])
+        result.append(track)
 
-    return tracks
+    return result
 
 
 def emit_tracks(day, tracks):
