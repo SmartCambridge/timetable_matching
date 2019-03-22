@@ -29,6 +29,7 @@ process_section() {
          --remote-time \
          --time-cond "${filename}" \
          --write-out '%{size_download}' \
+         --silent --show-error \
          "${base}${filename}")
 
     # Unzip it if it actually changed (or it was new)
