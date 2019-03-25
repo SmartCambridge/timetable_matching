@@ -99,9 +99,21 @@ def get_tracks(client, schema, date, interesting_stops):
                 tracks[vehicle]['vehicle'] = vehicle
                 tracks[vehicle]['positions'] = []
                 tracks[vehicle]['bbox'] = [None, None, None, None]
+                tracks[vehicle]['trips'] = []
                 tracks[vehicle]['lines'] = set()
                 tracks[vehicle]['origins'] = set()
                 tracks[vehicle]['destinations'] = set()
+
+            # Collect all the data that's common for one trip
+            TRIP_FIELDS = (
+                'DestinationName', 'DestinationRef', 'DirectionRef', 'LineRef',
+                'OperatorRef', 'OriginAimedDepartureTime', 'OriginName',
+                'OriginRef', 'VehicleRef'
+            )
+
+            trip = {field: record[field] for field in TRIP_FIELDS}
+            if trip not in tracks[vehicle]['trips']:
+                tracks[vehicle]['trips'].append(trip)
 
             # ... and the data that makes up a position report
             POSITION_FIELDS = (
@@ -125,6 +137,7 @@ def get_tracks(client, schema, date, interesting_stops):
     result = []
     for track in tracks.values():
         track['positions'].sort(key=lambda pos: pos['RecordedAtTime'])
+        track['trips'].sort(key=lambda trip: trip['OriginAimedDepartureTime'])
         track['lines'] = sorted(track['lines'])
         track['origins'] = sorted(track['origins'])
         track['destinations'] = sorted(track['destinations'])
