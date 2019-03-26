@@ -114,6 +114,7 @@ def get_tracks(client, schema, date, interesting_stops):
             trip = {field: record[field] for field in TRIP_FIELDS}
             if trip not in tracks[vehicle]['trips']:
                 tracks[vehicle]['trips'].append(trip)
+            trip_pos = tracks[vehicle]['trips'].index(trip)
 
             # ... and the data that makes up a position report
             POSITION_FIELDS = (
@@ -121,6 +122,7 @@ def get_tracks(client, schema, date, interesting_stops):
             )
 
             position = {field: record[field] for field in POSITION_FIELDS}
+            position['trip'] = trip_pos
             tracks[vehicle]['positions'].append(position)
 
             tracks[vehicle]['lines'].add(record['LineRef'])
@@ -133,11 +135,11 @@ def get_tracks(client, schema, date, interesting_stops):
 
     logger.info("Found %s tracks", len(tracks))
 
-    # Sort position records by time, and line, orgin and destination as text
+    # Sort position records by time, and line, origin and destination as text
+    # (but not trips, because we use their index for the 'trip' key in 'position')
     result = []
     for track in tracks.values():
         track['positions'].sort(key=lambda pos: pos['RecordedAtTime'])
-        track['trips'].sort(key=lambda trip: trip['OriginAimedDepartureTime'])
         track['lines'] = sorted(track['lines'])
         track['origins'] = sorted(track['origins'])
         track['destinations'] = sorted(track['destinations'])
