@@ -129,7 +129,7 @@ def sumarise(segments):
 
         previous_departure = departure
 
-    values = []
+    values = None
     # If there was actually anything to process
     if segments['segments']:
 
@@ -171,7 +171,10 @@ def main():
 
         segments = load_segments(filename)
 
-        values.append(sumarise(segments))
+        summary = sumarise(segments)
+
+        if summary:
+            values.append(summary)
 
     values.sort(key=lambda row: row[0])
 
