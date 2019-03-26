@@ -7,16 +7,19 @@ Read a list of merged trip/journey records for a given day. Output
 NAPTAN stop details for all stops mentioned.
 """
 
+import argparse
 import datetime
 import json
 import logging
 import sys
 
+from haversine import haversine
+
 from util import (
-    API_SCHEMA, BOUNDING_BOX, get_client, get_stops, lookup
+    API_SCHEMA, get_client, lookup
 )
 
-logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
+logging.basicConfig(format='%(asctime)s %(message)s', level=logging.DEBUG)
 logger = logging.getLogger('__name__')
 
 
@@ -64,87 +67,95 @@ def load_tracks(day):
 #                     "RecordedAtTime": "2019-03-20T06:45:57+00:00"
 #                 },
 #                 <...>
-#             ]
+#             ],
+#             "trips": [
+#                {
+#                    "DestinationName": "Tesco",
+#                    "DestinationRef": "0500SBARH011",
+#                    "DirectionRef": "INBOUND",
+#                    "LineRef": "8",
+#                    "OperatorRef": "WP",
+#                    "OriginAimedDepartureTime": "2019-03-20T07:12:00+00:00",
+#                    "OriginName": "Scotts Crescent",
+#                    "OriginRef": "0500HHILT004",
+#                    "VehicleRef": "WP-325"
+#                },
+#                <...>
+#             ],
+#             "vehicle": "WP-325"
 #         },
 #     ]
 # }
 
-def extract_trips(tracks):
+def extract_trips(tracks, from_stop, to_stop, line):
     '''
-    Extract all trips from start stop to end stop 
+    Extract all trips from start stop to end stop
     '''
 
+    origin = (float(from_stop['latitude']), float(from_stop['longitude']))
+    destination = (float(to_stop['latitude']), float(to_stop['longitude']))
 
- # Borrowed from get_trips.pt: derive_timings
+    trips = []
 
-     for trip in trips:
+    threshold = 50
 
-        logger.debug('')
-        logger.debug('Processing %s to %s at %s', trip['OriginRef'],
-                     trip['DestinationRef'], trip['OriginAimedDepartureTime'])
+    for track in tracks['tracks']:
+q
+        if (line and line not in track['lines']):
+            logger.debug("Skipping %s - doesn't service line %s", track['vehicle'], line)
+            continue
 
-        origin = (float(trip['OriginStop']['latitude']),
-                  float(trip['OriginStop']['longitude']))
-        destination = (float(trip['DestinationStop']['latitude']),
-                       float(trip['DestinationStop']['longitude']))
+        logger.debug('Processing %s', track['vehicle'])
 
-        departure_state = 'before'
-        arrival_state = 'before'
-        departure_position = arrival_position = None
+        state = 'before'
+        positions = []
 
-        for row, position in enumerate(trip['positions']):
+        for row, position in enumerate(track['positions']):
 
-            logger.debug('')
-            logger.debug('Processing position %s', row)
-            logger.debug('initial origin state %s; destination state %s', departure_state, arrival_state)
+            logger.debug('      timestamp %s', position['RecordedAtTime'])
 
             here = (float(position['Latitude']), float(position['Longitude']))
 
             origin_distance = haversine(here, origin) * 1000  # in meters
 
-            logger.debug('Origin distance %s', origin_distance)
+            # logger.debug('Origin distance %s', origin_distance)
 
-            if departure_state == 'before' and origin_distance < threshold:
-                departure_state = 'at'
-                logger.debug('Departure state transition before --> at')
-            elif departure_state == 'at' and origin_distance > threshold:
-                departure_position = row - 1
-                departure_state = 'after'
-                logger.debug('Departure state transition at --> after')
+            # Arrive at start
+            if state == 'before' and origin_distance < threshold:
+                state = 'at_start'
+                logger.debug('State transition before --> at_start')
+
+            # Leave start
+            elif state == 'at_start' and origin_distance > threshold:
+                positions.append(track['positions'][row - 1])
+                state = 'travelling'
+                logger.debug('State transition at_start --> travelling')
+
+            # Between start and destination
+            if state == 'travelling':
+                positions.append(position)
 
             destination_distance = haversine(here, destination) * 1000  # in meters
 
-            logger.debug('Destination distance %s', destination_distance)
+            # logger.debug('Destination distance %s', destination_distance)
 
-            if arrival_state == 'before' and destination_distance < threshold:
-                arrival_state = 'at'
-                arrival_position = row
-                logger.debug('Arrival state transition before --> at')
+            # Arrive destination
+            if state == 'travelling' and destination_distance < threshold:
+                trips.append({'VehicleRef': track['vehicle'], 'positions': positions})
+                state = 'before'
+                logger.debug('State transition travelling --> before')
+                logger.debug("Trip length %s", len(positions))
+                positions = []
 
-            logger.debug('Final origin state %s; destination state %s', departure_state, arrival_state)
+    logger.debug("Found %s trips", len(trips))
 
-        # Try a bit harder if we still don't have an arrival_position - use
-        # the very last position if it's within threshold * 4
-        if arrival_position is None:
-            final_position = trip['positions'][-1]
-            final = (float(final_position['Latitude']), float(final_position['Longitude']))
-            if (haversine(final, destination) * 1000) < (threshold * 4):
-                arrival_position = len(trip['positions']) - 1
-                logger.debug('Using final position for arrival')
-
-
-        logger.debug('Departure row %s; arrival row %s', departure_position, arrival_position)
-        logger.debug('')
-
-        trip['departure_position'] = departure_position
-        trip['arrival_position'] = arrival_position
-
-# END borrow
+    # Sort trips by start time
+    trips.sort(key=lambda trip: trip['positions'][0]['RecordedAtTime'])
 
     return trips
 
 
-def emit_trips(day, trips):
+def emit_trips(day, bbox, from_stop, to_stop, line, trips):
     '''
     Print trip details in json to 'trips-<YYYY>-<mm>-<dd>.json'
     '''
@@ -155,7 +166,10 @@ def emit_trips(day, trips):
     with open(filename, 'w', newline='') as jsonfile:
         output = {
             'day': day.strftime("%Y-%m-%d"),
-            'bounding_box': BOUNDING_BOX,
+            'bounding_box': bbox,
+            'from_stop': from_stop,
+            'to_stop': to_stop,
+            'line': line,
             'trips': trips
         }
         json.dump(output, jsonfile, indent=4, sort_keys=True)
@@ -163,21 +177,53 @@ def emit_trips(day, trips):
         logger.info('Output done')
 
 
+def parse_command_line():
+
+    parser = argparse.ArgumentParser(description='Extract trips from tracks information.')
+
+    parser.add_argument(
+        '--from',
+        dest='from_',
+        required=True,
+        help='extract stops from this stop')
+    parser.add_argument(
+        '--to',
+        required=True,
+        help='extract stops to this stop')
+    parser.add_argument(
+        '--line',
+        help='restrict to tracks from vehicles servicing a particular line')
+    parser.add_argument(
+        'date',
+        help='date to process')
+
+    return parser.parse_args()
+
+
 def main():
 
     logger.info('Start')
 
+    args = parse_command_line()
+
     try:
-        day = datetime.datetime.strptime(sys.argv[1], '%Y-%m-%d').date()
+        day = datetime.datetime.strptime(args.date, '%Y-%m-%d').date()
     except ValueError:
         logger.error('Failed to parse date')
         sys.exit()
 
+    # Setup a coreapi client
+    client = get_client()
+    schema = client.get(API_SCHEMA)
+
+    from_stop = lookup(client, schema, args.from_, {}, {})
+    to_stop = lookup(client, schema, args.to, {}, {})
+
     tracks = load_tracks(day)
 
-    trips = extract_trips(tracks)
+    trips = extract_trips(tracks, from_stop, to_stop, args.line)
 
-    emit_trips(day, tracks['bounding_box'], trips)
+    emit_trips(day, tracks['bounding_box'], from_stop, to_stop, args.line, trips)
 
     logger.info('Stop')
 
