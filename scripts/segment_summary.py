@@ -129,17 +129,21 @@ def sumarise(segments):
 
         previous_departure = departure
 
-    values = [
-        day,
-        segments['from_stop']['atco_code'],
-        segments['to_stop']['atco_code'],
-        results['morning']['best'],
-        results['morning']['worst'],
-        results['daytime']['best'],
-        results['daytime']['worst'],
-        results['evening']['best'],
-        results['evening']['worst'],
-    ]
+    values = []
+    # If there was actually anything to process
+    if segments['segments']:
+
+        values = [
+            day,
+            segments['from_stop']['atco_code'],
+            segments['to_stop']['atco_code'],
+            results['morning']['best'],
+            results['morning']['worst'],
+            results['daytime']['best'],
+            results['daytime']['worst'],
+            results['evening']['best'],
+            results['evening']['worst'],
+        ]
 
     return values
 
