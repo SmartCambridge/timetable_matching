@@ -76,16 +76,6 @@ def load_segments(basename):
     return segments
 
 
-
-def format_minutes(seconds):
-    '''
-    Format a datetime in minuites and fractions thereof
-    '''
-    if seconds is None:
-        return ''
-    return '{0:.2f}'.format(seconds/60)
-
-
 def sumarise(segments):
 
     header = [
