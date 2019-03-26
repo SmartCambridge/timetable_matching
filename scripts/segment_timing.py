@@ -68,11 +68,11 @@ def load_segments(basename):
     logger.info('Reading %s', filename)
 
     with open(filename, 'r', newline='') as jsonfile:
-        trips = json.load(jsonfile)
+        segments = json.load(jsonfile)
 
     logger.info('Done')
 
-    return trips
+    return segments
 
 
 def sumarise(segments):
@@ -113,7 +113,7 @@ def sumarise(segments):
 
 def emit_csv(basename, header, values):
 
-    csv_filename = '{}.csv'.format(basename)
+    csv_filename = '{}-timings.csv'.format(basename)
     logger.info('Outputing CSV to %s', csv_filename)
 
     with open(csv_filename, 'w', newline='') as csvfile:
