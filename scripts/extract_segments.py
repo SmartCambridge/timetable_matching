@@ -116,8 +116,6 @@ def extract_segments(tracks, from_stop, to_stop, line):
 
         for row, position in enumerate(track['positions']):
 
-            logger.debug('      timestamp %s', position['RecordedAtTime'])
-
             here = (float(position['Latitude']), float(position['Longitude']))
 
             origin_distance = haversine(here, origin) * 1000  # in meters
@@ -150,7 +148,7 @@ def extract_segments(tracks, from_stop, to_stop, line):
                 logger.debug("Trip length %s", len(positions))
                 positions = []
 
-    logger.debug("Found %s segments", len(segments))
+    logger.info("Found %s segments", len(segments))
 
     # Sort trips by start time
     segments.sort(key=lambda trip: trip['positions'][0]['RecordedAtTime'])
