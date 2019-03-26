@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 
 """
-Extract NAPTAN stop details from merged trips/journeys
+Extract from a collection of vehicle tracks all the track segments that
+correspond to trips from a specified origin stop to a specified
+destination stop (optionally only for vehicles that serviced a specified
+line sometime during that day).
 
-Read a list of merged trip/journey records for a given day. Output
-NAPTAN stop details for all stops mentioned.
+The output format resembles the output from get_trips.py, but lacks
+most of the trip metadata.
 """
 
 import argparse
@@ -35,7 +38,6 @@ def load_tracks(day):
 
     return tracks
 
-
 # {
 #     "bounding_box": "0.007896,52.155610,0.225048,52.267842",
 #     "day": "2019-03-20",
@@ -64,7 +66,8 @@ def load_tracks(day):
 #                     "Delay": "PT0S",
 #                     "Latitude": "52.2308846",
 #                     "Longitude": "0.1594450",
-#                     "RecordedAtTime": "2019-03-20T06:45:57+00:00"
+#                     "RecordedAtTime": "2019-03-20T06:45:57+00:00",
+#                     "trip": 3
 #                 },
 #                 <...>
 #             ],
@@ -87,22 +90,23 @@ def load_tracks(day):
 #     ]
 # }
 
-def extract_trips(tracks, from_stop, to_stop, line):
+
+def extract_segments(tracks, from_stop, to_stop, line):
     '''
-    Extract all trips from start stop to end stop
+    Extract all trips from from_stop to to_stop (optionally for line)
     '''
 
     origin = (float(from_stop['latitude']), float(from_stop['longitude']))
     destination = (float(to_stop['latitude']), float(to_stop['longitude']))
 
-    trips = []
+    segments = []
 
-    threshold = 50
+    threshold = 50  # meters
 
     for track in tracks['tracks']:
-q
+
         if (line and line not in track['lines']):
-            logger.debug("Skipping %s - doesn't service line %s", track['vehicle'], line)
+            logger.debug("Skipping vehicle %s - doesn't service line %s", track['vehicle'], line)
             continue
 
         logger.debug('Processing %s', track['vehicle'])
@@ -118,49 +122,51 @@ q
 
             origin_distance = haversine(here, origin) * 1000  # in meters
 
-            # logger.debug('Origin distance %s', origin_distance)
+            # State transitions
 
-            # Arrive at start
+            # Arrive at from_stop
             if state == 'before' and origin_distance < threshold:
                 state = 'at_start'
                 logger.debug('State transition before --> at_start')
 
-            # Leave start
+            # Leave from_stop
             elif state == 'at_start' and origin_distance > threshold:
+                # Record the previous position as the start of the segment
                 positions.append(track['positions'][row - 1])
                 state = 'travelling'
                 logger.debug('State transition at_start --> travelling')
 
-            # Between start and destination
+            # Between from_stop and to_stop
             if state == 'travelling':
                 positions.append(position)
 
             destination_distance = haversine(here, destination) * 1000  # in meters
 
-            # logger.debug('Destination distance %s', destination_distance)
-
-            # Arrive destination
+            # Arrive at to_stop
             if state == 'travelling' and destination_distance < threshold:
-                trips.append({'VehicleRef': track['vehicle'], 'positions': positions})
                 state = 'before'
                 logger.debug('State transition travelling --> before')
+                segments.append({'VehicleRef': track['vehicle'], 'positions': positions})
                 logger.debug("Trip length %s", len(positions))
                 positions = []
 
-    logger.debug("Found %s trips", len(trips))
+    logger.debug("Found %s segments", len(segments))
 
     # Sort trips by start time
-    trips.sort(key=lambda trip: trip['positions'][0]['RecordedAtTime'])
+    segments.sort(key=lambda trip: trip['positions'][0]['RecordedAtTime'])
 
-    return trips
+    return segments
 
 
-def emit_trips(day, bbox, from_stop, to_stop, line, trips):
+def emit_segments(day, bbox, from_stop, to_stop, line, segments):
     '''
     Print trip details in json to 'trips-<YYYY>-<mm>-<dd>.json'
     '''
 
-    filename = 'trips-from-tracks-{:%Y-%m-%d}.json'.format(day)
+    filename = 'segments-{}-{}-{:%Y-%m-%d}.json'.format(
+        from_stop['atco_code'],
+        to_stop['atco_code'],
+        day)
     logger.info('Outputing to %s', filename)
 
     with open(filename, 'w', newline='') as jsonfile:
@@ -170,7 +176,7 @@ def emit_trips(day, bbox, from_stop, to_stop, line, trips):
             'from_stop': from_stop,
             'to_stop': to_stop,
             'line': line,
-            'trips': trips
+            'segments': segments
         }
         json.dump(output, jsonfile, indent=4, sort_keys=True)
 
@@ -183,7 +189,7 @@ def parse_command_line():
 
     parser.add_argument(
         '--from',
-        dest='from_',
+        dest='from_',  # Can't use 'from' because it's a reserved word
         required=True,
         help='extract stops from this stop')
     parser.add_argument(
@@ -221,9 +227,9 @@ def main():
 
     tracks = load_tracks(day)
 
-    trips = extract_trips(tracks, from_stop, to_stop, args.line)
+    segments = extract_segments(tracks, from_stop, to_stop, args.line)
 
-    emit_trips(day, tracks['bounding_box'], from_stop, to_stop, args.line, trips)
+    emit_segments(day, tracks['bounding_box'], from_stop, to_stop, args.line, segments)
 
     logger.info('Stop')
 
