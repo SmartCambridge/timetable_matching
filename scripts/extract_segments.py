@@ -187,6 +187,7 @@ def parse_command_line():
     parser.add_argument(
         '--from',
         dest='from_',  # Can't use 'from' because it's a reserved word
+        metavar='FROM',
         required=True,
         help='extract stops from this stop')
     parser.add_argument(
@@ -198,6 +199,7 @@ def parse_command_line():
         help='restrict to tracks from vehicles servicing a particular line')
     parser.add_argument(
         'date',
+        metavar="YYYY-MM-DD",
         help='date to process')
 
     return parser.parse_args()
