@@ -121,9 +121,10 @@ def extract_segments(tracks, from_stop, to_stop, line):
 
             # State transitions
 
-            # Arrive at from_stop
-            if state == 'before' and origin_distance < threshold:
+            # At from_stop
+            if origin_distance < threshold:
                 state = 'at_start'
+                positions = []
                 logger.debug('State transition before --> at_start')
 
             # Leave from_stop
