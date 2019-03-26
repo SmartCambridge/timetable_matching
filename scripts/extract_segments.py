@@ -22,7 +22,6 @@ from util import (
     API_SCHEMA, get_client, lookup
 )
 
-logging.basicConfig(format='%(asctime)s %(message)s', level=logging.DEBUG)
 logger = logging.getLogger('__name__')
 
 
@@ -205,6 +204,8 @@ def parse_command_line():
 
 
 def main():
+
+    logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 
     logger.info('Start')
 
