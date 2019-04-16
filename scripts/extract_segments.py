@@ -12,6 +12,7 @@ most of the trip metadata.
 
 import argparse
 import datetime
+import isodate
 import json
 import logging
 import sys
@@ -90,7 +91,7 @@ def load_tracks(day):
 # }
 
 
-def extract_segments(tracks, from_stop, to_stop, line):
+def extract_segments(tracks, from_stop, to_stop, line, origin_threshold, destination_threshold):
     '''
     Extract all trips from from_stop to to_stop (optionally for line)
     '''
@@ -100,7 +101,7 @@ def extract_segments(tracks, from_stop, to_stop, line):
 
     segments = []
 
-    threshold = 50  # meters
+    route_timeout = 500  # seconds
 
     for track in tracks['tracks']:
 
@@ -110,7 +111,7 @@ def extract_segments(tracks, from_stop, to_stop, line):
 
         logger.debug('Processing %s', track['vehicle'])
 
-        state = 'before'
+        state = 'off_route'
         positions = []
 
         for row, position in enumerate(track['positions']):
@@ -121,42 +122,66 @@ def extract_segments(tracks, from_stop, to_stop, line):
 
             # State transitions
 
-            # At from_stop
-            if origin_distance < threshold:
-                state = 'at_start'
-                positions = []
-                logger.debug('State transition before --> at_start')
+            if state == 'off_route':
+                if origin_distance < origin_threshold:
+                    state = 'at_start'
+                    logger.debug('State transition (%s): arrived at start (off_route --> at_start)', position['RecordedAtTime'])
+                    positions.append(position)
+                else:
+                    positions.append(position)
 
-            # Leave from_stop
-            elif state == 'at_start' and origin_distance > threshold:
-                # Record the previous position as the start of the segment
-                positions.append(track['positions'][row - 1])
-                state = 'travelling'
-                logger.debug('State transition at_start --> travelling')
+            if state == 'at_start':
+                if origin_distance > origin_threshold:
+                    state = 'on_route'
+                    logger.debug('State transition (%s): departed (at_start --> on_route)', position['RecordedAtTime'])
+                    previous_position = positions.pop()
+                    segments.append({
+                        'VehicleRef': track['vehicle'],
+                        'on_route': False,
+                        'positions': positions})
+                    positions = [previous_position, position]
+                else:
+                    positions.append(position)
 
-            # Between from_stop and to_stop
-            if state == 'travelling':
-                positions.append(position)
+            if state == 'on_route':
+                destination_distance = haversine(here, destination) * 1000
+                previous_timestamp = isodate.parse_datetime(positions[-1]['RecordedAtTime'])
+                this_timestamp = isodate.parse_datetime(position['RecordedAtTime'])
+                if origin_distance < origin_threshold:
+                    state = 'at_start'
+                    logger.debug('State transition (%s): returned to start (on_route --> at_start)', position['RecordedAtTime'])
+                    positions.append(position)
+                elif (this_timestamp - previous_timestamp).total_seconds() > route_timeout:
+                    state = 'off_route'
+                    logger.debug('State transition (%s): timed-out (on_route --> off_route)', position['RecordedAtTime'])
+                elif destination_distance < destination_threshold:
+                    state = 'off_route'
+                    logger.debug('State transition (%s): arrived (on_route --> off_route)', position['RecordedAtTime'])
+                    positions.append(position)
+                    segments.append({
+                        'VehicleRef': track['vehicle'],
+                        'on_route': True,
+                        'positions': positions})
+                    logger.debug("On route segment length %s", len(positions))
+                    positions = []
+                else:
+                    positions.append(position)
 
-            destination_distance = haversine(here, destination) * 1000  # in meters
-
-            # Arrive at to_stop
-            if state == 'travelling' and destination_distance < threshold:
-                state = 'before'
-                logger.debug('State transition travelling --> before')
-                segments.append({'VehicleRef': track['vehicle'], 'positions': positions})
-                logger.debug("Trip length %s", len(positions))
-                positions = []
+        if positions:
+            segments.append({
+                'VehicleRef': track['vehicle'],
+                'on_route': False,
+                'positions': positions})
 
     logger.info("Found %s segments", len(segments))
 
     # Sort trips by start time
-    segments.sort(key=lambda trip: trip['positions'][0]['RecordedAtTime'])
+    segments.sort(key=lambda segment: segment['positions'][0]['RecordedAtTime'])
 
     return segments
 
 
-def emit_segments(day, bbox, from_stop, to_stop, line, segments):
+def emit_segments(day, bbox, from_stop, to_stop, line, origin_threshold, destination_threshold, segments):
     '''
     Print trip details in json to 'trips-<YYYY>-<mm>-<dd>.json'
     '''
@@ -174,6 +199,8 @@ def emit_segments(day, bbox, from_stop, to_stop, line, segments):
             'from_stop': from_stop,
             'to_stop': to_stop,
             'line': line,
+            'origin_threshold': origin_threshold,
+            'destination_threshold': destination_threshold,
             'segments': segments
         }
         json.dump(output, jsonfile, indent=4, sort_keys=True)
@@ -208,7 +235,7 @@ def parse_command_line():
 
 def main():
 
-    logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
+    logging.basicConfig(format='%(asctime)s %(message)s', level=logging.DEBUG)
 
     logger.info('Start')
 
@@ -227,11 +254,27 @@ def main():
     from_stop = lookup(client, schema, args.from_, {}, {})
     to_stop = lookup(client, schema, args.to, {}, {})
 
+    origin_threshold = 40  # meters
+    destination_threshold = 40  # meters
+
     tracks = load_tracks(day)
 
-    segments = extract_segments(tracks, from_stop, to_stop, args.line)
+    segments = extract_segments(
+        tracks,
+        from_stop,
+        to_stop,
+        args.line,
+        origin_threshold,
+        destination_threshold)
 
-    emit_segments(day, tracks['bounding_box'], from_stop, to_stop, args.line, segments)
+    emit_segments(day,
+        tracks['bounding_box'],
+        from_stop,
+        to_stop,
+        args.line,
+        origin_threshold,
+        destination_threshold,
+        segments)
 
     logger.info('Stop')
 
