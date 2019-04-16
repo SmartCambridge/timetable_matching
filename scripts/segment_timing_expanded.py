@@ -93,6 +93,8 @@ def sumarise(segments):
     # Build a table of trip times
     trip_table = []
     for segment in segments['segments']:
+        if not segment['on_route']:
+            continue
         departure = isodate.parse_datetime(segment['positions'][0]['RecordedAtTime'])
         arrival = isodate.parse_datetime(segment['positions'][-1]['RecordedAtTime'])
         trip_table.append([departure, arrival, segment['VehicleRef']])

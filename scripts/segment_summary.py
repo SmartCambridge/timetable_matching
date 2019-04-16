@@ -100,6 +100,9 @@ def sumarise(segments):
 
     for segment in segments['segments']:
 
+        if not segment['on_route']:
+            continue
+
         departure = isodate.parse_datetime(segment['positions'][0]['RecordedAtTime'])
         arrival = isodate.parse_datetime(segment['positions'][-1]['RecordedAtTime'])
 

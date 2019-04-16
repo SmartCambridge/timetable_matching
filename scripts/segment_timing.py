@@ -2,7 +2,7 @@
 
 """
 Extract start/end times plus durations and maximum wait time for
-the track segments in the supplied file
+the on_route track segments in the supplied file
 """
 
 import json
@@ -89,6 +89,9 @@ def sumarise(segments):
     previous_departure = None
 
     for segment in segments['segments']:
+
+        if not segment['on_route']:
+            continue
 
         departure = isodate.parse_datetime(segment['positions'][0]['RecordedAtTime'])
         arrival = isodate.parse_datetime(segment['positions'][-1]['RecordedAtTime'])
