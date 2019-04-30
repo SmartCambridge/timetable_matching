@@ -36,7 +36,7 @@ def main():
         day = datetime.datetime.strptime(sys.argv[1], '%Y-%m-%d').date()
     except ValueError:
         logger.error('Failed to parse date')
-        sys.exit()
+        sys.exit(1)
 
     # Setup a coreapi client
     client = get_client()
@@ -44,15 +44,19 @@ def main():
 
     # Get the list of all the stops we are interested in
     interesting_stops = get_stops(client, schema, BOUNDING_BOX)
-    assert len(interesting_stops) > 0, 'Failed to get any stops'
+    if len(interesting_stops) == 0:
+        logger.error('Failed to get any stops')
+        sys.exit(2)
 
     # Retrieve timetable journeys
     journeys = get_journeys(day, interesting_stops, TNDS_REGIONS)
-    assert len(journeys) > 0, 'Failed to get any journeys'
+    if len(journeys) == 0:
+        logger.warn('Failed to get any journeys')
 
     # Collect real-time journeys
     trips = get_trips(client, schema, day, interesting_stops)
-    assert len(trips) > 0, 'Failed to get any trips'
+    if len(trips) == 0:
+        logger.warn('Failed to get any trips')
 
     # Derive trip departure and arrival timings
     derive_timings(trips)
