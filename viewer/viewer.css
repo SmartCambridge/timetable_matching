@@ -24,3 +24,10 @@ html {
 .popup th, .popup td {
     vertical-align: top;
 }
+
+.data-table table {
+  table-layout: fixed;
+  width: 100%;
+  border-collapse: collapse;
+  border: 3px solid gray;
+}

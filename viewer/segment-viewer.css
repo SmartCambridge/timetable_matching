@@ -28,3 +28,14 @@ html {
 .popup th, .popup td {
     vertical-align: top;
 }
+
+
+.data-table table {
+  table-layout: fixed;
+  border-collapse: collapse;
+  border: 3px solid gray;
+}
+
+.data-table table th, .data-table table td {
+  padding: 0.5em;
+}
